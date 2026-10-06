@@ -4,6 +4,7 @@ package config
 
 import (
 	"bufio"
+	"encoding/base64"
 	"fmt"
 	"os"
 	"strconv"
@@ -11,9 +12,29 @@ import (
 )
 
 type Config struct {
+	App      App
 	Postgres Postgres
 	Session  Session
 	// TODO: Mail, GoogleDrive sections come later — add fields here.
+}
+
+// App mirrors reference/config/app.php (APP_NAME, APP_KEY).
+type App struct {
+	Name string
+	Key  string
+}
+
+// KeyBytes returns the decoded APP_KEY (Laravel "base64:" + base64 32 bytes),
+// used as the AES-256-GCM key for 2FA secret/recovery-code encryption.
+func (a App) KeyBytes() ([]byte, error) {
+	raw, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(a.Key, "base64:"))
+	if err != nil {
+		return nil, fmt.Errorf("config: decode APP_KEY: %w", err)
+	}
+	if len(raw) != 32 {
+		return nil, fmt.Errorf("config: APP_KEY must decode to 32 bytes, got %d", len(raw))
+	}
+	return raw, nil
 }
 
 type Postgres struct {
@@ -39,6 +60,12 @@ func Load() (*Config, error) {
 	loadDotEnv(".env")
 
 	cfg := &Config{
+		App: App{
+			// reference/.env.example ships the stock Laravel default; real
+			// deployments set APP_NAME/APP_KEY in .env.
+			Name: getenv("APP_NAME", "Laravel"),
+			Key:  getenv("APP_KEY", ""),
+		},
 		Postgres: Postgres{
 			Host:     getenv("DB_HOST", "127.0.0.1"),
 			Port:     getenv("DB_PORT", "5432"),
@@ -46,8 +73,8 @@ func Load() (*Config, error) {
 			Password: getenv("DB_PASSWORD", ""),
 			DBName:   getenv("DB_DATABASE", "baaku_db"),
 		},
-		// Laravel derives the cookie name from APP_NAME; baaku has no
-		// APP_NAME env yet, so the default is fixed here.
+		// Laravel derives the cookie name from APP_NAME; baaku keeps a
+		// fixed default here.
 		Session: Session{
 			Cookie:   getenv("SESSION_COOKIE", "baaku-session"),
 			Lifetime: getenvInt("SESSION_LIFETIME", 120),
