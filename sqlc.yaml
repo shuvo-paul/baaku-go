@@ -1,0 +1,11 @@
+version: "2"
+sql:
+  - engine: "postgresql"
+    schema: "internal/database/000001_baseline_schema.sql"
+    queries: "internal/database/queries/"
+    gen:
+      go:
+        package: "generated"
+        out: "internal/database/queries/generated"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
