@@ -9,12 +9,10 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-	"unicode"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"golang.org/x/crypto/bcrypt"
 
 	"github.com/shuvo-paul/baaku/internal/database/queries/generated"
 )
@@ -85,9 +83,9 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (generated.Use
 		return generated.User{}, errs
 	}
 
-	hash, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
+	hash, err := Hash(in.Password)
 	if err != nil {
-		return generated.User{}, fmt.Errorf("auth: hash password: %w", err)
+		return generated.User{}, err
 	}
 
 	tx, err := s.pool.Begin(ctx)
@@ -209,44 +207,16 @@ func (in RegisterInput) Validate() FieldErrors {
 var emailRe = regexp.MustCompile(`^[^\s@]+@[^\s@]+\.[^\s@]+$`)
 
 func validatePassword(in RegisterInput, errs FieldErrors) {
-	pw := in.Password
-	if pw == "" {
+	if in.Password == "" {
 		errs["password"] = "The password field is required."
 		return
 	}
-	if pw != in.PasswordConfirmation {
-		errs["password"] = "The password field confirmation does not match."
+	if err := Validate(in.Password); err != nil {
+		errs["password"] = err.Error()
 		return
 	}
-
-	var hasLetter, hasUpper, hasLower, hasDigit, hasSymbol bool
-	for _, r := range pw {
-		switch {
-		case unicode.IsLetter(r):
-			hasLetter = true
-			if unicode.IsUpper(r) {
-				hasUpper = true
-			} else {
-				hasLower = true
-			}
-		case unicode.IsDigit(r):
-			hasDigit = true
-		default:
-			hasSymbol = true // Laravel symbols rule: anything not letter/digit
-		}
-	}
-	// First failing sub-rule wins, matching Laravel's Password rule order.
-	switch {
-	case len(pw) < 8:
-		errs["password"] = "The password field must be at least 8 characters."
-	case !hasLetter:
-		errs["password"] = "The password field must contain at least one letter."
-	case !hasUpper || !hasLower:
-		errs["password"] = "The password field must contain at least one uppercase and one lowercase letter."
-	case !hasDigit:
-		errs["password"] = "The password field must contain at least one number."
-	case !hasSymbol:
-		errs["password"] = "The password field must contain at least one symbol."
+	if err := Confirmed(in.Password, in.PasswordConfirmation); err != nil {
+		errs["password"] = "The password field confirmation does not match."
 	}
 }
 

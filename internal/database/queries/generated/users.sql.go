@@ -7,6 +7,8 @@ package generated
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createUser = `-- name: CreateUser :one
@@ -101,6 +103,32 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
 	return i, err
 }
 
+const setUserTwoFactor = `-- name: SetUserTwoFactor :exec
+UPDATE public.users
+SET two_factor_secret = $1,
+    two_factor_recovery_codes = $2,
+    two_factor_confirmed_at = $3,
+    updated_at = now()::timestamp(0)
+WHERE id = $4
+`
+
+type SetUserTwoFactorParams struct {
+	TwoFactorSecret        *string
+	TwoFactorRecoveryCodes *string
+	TwoFactorConfirmedAt   pgtype.Timestamp
+	ID                     int64
+}
+
+func (q *Queries) SetUserTwoFactor(ctx context.Context, arg SetUserTwoFactorParams) error {
+	_, err := q.db.Exec(ctx, setUserTwoFactor,
+		arg.TwoFactorSecret,
+		arg.TwoFactorRecoveryCodes,
+		arg.TwoFactorConfirmedAt,
+		arg.ID,
+	)
+	return err
+}
+
 const updateUserPassword = `-- name: UpdateUserPassword :exec
 UPDATE public.users
 SET password = $1, remember_token = NULL, updated_at = now()::timestamp(0)
@@ -114,6 +142,22 @@ type UpdateUserPasswordParams struct {
 
 func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error {
 	_, err := q.db.Exec(ctx, updateUserPassword, arg.Password, arg.ID)
+	return err
+}
+
+const updateUserState = `-- name: UpdateUserState :exec
+UPDATE public.users
+SET state = $1, updated_at = now()::timestamp(0)
+WHERE id = $2
+`
+
+type UpdateUserStateParams struct {
+	State string
+	ID    int64
+}
+
+func (q *Queries) UpdateUserState(ctx context.Context, arg UpdateUserStateParams) error {
+	_, err := q.db.Exec(ctx, updateUserState, arg.State, arg.ID)
 	return err
 }
 

@@ -26,7 +26,7 @@ func strptr(s string) *string { return &s }
 func i16ptr(v int16) *int16   { return &v }
 func i32ptr(v int32) *int32   { return &v }
 
-func TestValidate(t *testing.T) {
+func TestRegisterInputValidate(t *testing.T) {
 	tests := []struct {
 		name    string
 		mutate  func(*RegisterInput)

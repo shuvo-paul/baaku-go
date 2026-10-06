@@ -6,11 +6,13 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 )
 
 type Config struct {
 	Postgres Postgres
+	Session  Session
 	// TODO: Mail, GoogleDrive sections come later — add fields here.
 }
 
@@ -20,6 +22,15 @@ type Postgres struct {
 	User     string
 	Password string
 	DBName   string
+}
+
+// Session mirrors reference/config/session.php (database driver).
+type Session struct {
+	Cookie   string // SESSION_COOKIE
+	Lifetime int    // SESSION_LIFETIME, minutes
+	Secure   bool   // SESSION_SECURE_COOKIE
+	HttpOnly bool   // SESSION_HTTP_ONLY
+	SameSite string // SESSION_SAME_SITE
 }
 
 // Load reads .env if present (existing env vars win), then builds Config
@@ -34,6 +45,15 @@ func Load() (*Config, error) {
 			User:     getenv("DB_USERNAME", "baaku"),
 			Password: getenv("DB_PASSWORD", ""),
 			DBName:   getenv("DB_DATABASE", "baaku_db"),
+		},
+		// Laravel derives the cookie name from APP_NAME; baaku has no
+		// APP_NAME env yet, so the default is fixed here.
+		Session: Session{
+			Cookie:   getenv("SESSION_COOKIE", "baaku-session"),
+			Lifetime: getenvInt("SESSION_LIFETIME", 120),
+			Secure:   getenvBool("SESSION_SECURE_COOKIE", false),
+			HttpOnly: getenvBool("SESSION_HTTP_ONLY", true),
+			SameSite: getenv("SESSION_SAME_SITE", "lax"),
 		},
 	}
 	return cfg, nil
@@ -54,6 +74,24 @@ func (p Postgres) DSN() string {
 func getenv(key, fallback string) string {
 	if v, ok := os.LookupEnv(key); ok && v != "" {
 		return v
+	}
+	return fallback
+}
+
+func getenvInt(key string, fallback int) int {
+	if v := getenv(key, ""); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			return n
+		}
+	}
+	return fallback
+}
+
+func getenvBool(key string, fallback bool) bool {
+	if v := getenv(key, ""); v != "" {
+		if b, err := strconv.ParseBool(v); err == nil {
+			return b
+		}
 	}
 	return fallback
 }
