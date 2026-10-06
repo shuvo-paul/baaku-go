@@ -69,16 +69,16 @@ type RegisterInput struct {
 	Educations           []EducationInput
 }
 
-// Service registers new users.
-type Service struct {
+// RegisterService registers new users.
+type RegisterService struct {
 	pool *pgxpool.Pool
 }
 
-func NewService(pool *pgxpool.Pool) *Service { return &Service{pool: pool} }
+func NewRegisterService(pool *pgxpool.Pool) *RegisterService { return &RegisterService{pool: pool} }
 
 // Register validates in, then inserts user + profile + educations rows in a
 // single transaction. Validation failures come back as FieldErrors.
-func (s *Service) Register(ctx context.Context, in RegisterInput) (generated.User, error) {
+func (s *RegisterService) Register(ctx context.Context, in RegisterInput) (generated.User, error) {
 	if errs := in.Validate(); len(errs) > 0 {
 		return generated.User{}, errs
 	}
