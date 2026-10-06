@@ -1,6 +1,8 @@
 package config
 
 import (
+	"bytes"
+	"encoding/base64"
 	"os"
 	"path/filepath"
 	"testing"
@@ -63,5 +65,31 @@ func TestLoadDefaultsWithoutDotEnv(t *testing.T) {
 	}
 	if cfg.Auth.PasswordTimeout != 10800 {
 		t.Errorf("PasswordTimeout = %d, want default 10800", cfg.Auth.PasswordTimeout)
+	}
+}
+
+func TestAppKeyBytes(t *testing.T) {
+	raw := bytes.Repeat([]byte{0x7f}, 32)
+	app := App{Key: "base64:" + base64.StdEncoding.EncodeToString(raw)}
+	got, err := app.KeyBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, raw) {
+		t.Error("KeyBytes returned wrong key material")
+	}
+
+	// No prefix also decodes (plain base64 APP_KEY).
+	app.Key = base64.StdEncoding.EncodeToString(raw)
+	if _, err := app.KeyBytes(); err != nil {
+		t.Errorf("plain base64 APP_KEY rejected: %v", err)
+	}
+
+	app.Key = "base64:" + base64.StdEncoding.EncodeToString(raw[:16])
+	if _, err := app.KeyBytes(); err == nil {
+		t.Error("16-byte APP_KEY accepted, want error")
+	}
+	if _, err := (App{Key: "not-base64!!"}).KeyBytes(); err == nil {
+		t.Error("garbage APP_KEY accepted, want error")
 	}
 }
