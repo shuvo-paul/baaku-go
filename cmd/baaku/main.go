@@ -1,6 +1,8 @@
 package main
 
 import (
+	"embed"
+	"io/fs"
 	"net/http"
 	"os"
 
@@ -8,6 +10,11 @@ import (
 	"github.com/shuvo-paul/baaku/internal/config"
 	"github.com/shuvo-paul/baaku/internal/logger"
 )
+
+// Built assets (make assets). all: keeps .gitkeep so go build works pre-build.
+//
+//go:embed all:static
+var staticFS embed.FS
 
 func main() {
 	l := logger.New()
@@ -20,6 +27,12 @@ func main() {
 
 	r := chi.NewRouter()
 	// routes go here
+
+	static, err := fs.Sub(staticFS, "static")
+	if err != nil {
+		l.Fatal().Err(err).Msg("baaku: static fs")
+	}
+	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.FS(static))))
 
 	addr := ":" + port()
 	l.Info().Str("addr", addr).Msg("baaku: listening")

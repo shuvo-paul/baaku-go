@@ -6,8 +6,8 @@ tmp_dir = "tmp"
 cmd = "go build -o ./bin/baaku ./cmd/baaku"
 bin = "./bin/baaku"
 full_bin = "./bin/baaku"
-include_ext = ["go", "tpl", "tmpl", "html"]
-exclude_dir = ["tmp", "bin", "reference"]
+include_ext = ["go", "tpl", "tmpl", "html", "css", "js"]
+exclude_dir = ["tmp", "bin", "reference", "node_modules"]
 
 [log]
 time = false

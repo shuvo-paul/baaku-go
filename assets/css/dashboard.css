@@ -1,0 +1,30 @@
+/*
+ * Dashboard entry — layouts/dashboard family (admin + member pages).
+ * Navy Heritage theme, Hanken Grotesk + Source Serif 4 (font <link> lives
+ * in the layout — Bunny CDN in the Go port, fonts.bunny.net).
+ * Ported from reference/resources/css/dashboard.css — Tailwind v4.
+ */
+@import 'tailwindcss' source(none);
+@import './theme-heritage.css';
+
+/*
+ * Heritage & Horizon is a single light theme (see DESIGN.md). Tailwind's
+ * default `dark:` variant follows prefers-color-scheme, so an OS in dark
+ * mode would flip dashboard pages dark. Re-scope it to a `.dark` class that
+ * is never applied, making every `dark:` utility inert.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+[x-cloak] { display: none !important; }
+
+/*
+ * Full scan of the Go tree — the dashboard family renders most of it, and
+ * the superset is cheaper than a curated list that silently drops a class.
+ */
+@source "../../cmd";
+@source "../../internal";
+
+@theme {
+    --font-sans: 'Hanken Grotesk', ui-sans-serif, system-ui, sans-serif;
+    --font-serif: 'Source Serif 4', ui-serif, Georgia, serif;
+}
