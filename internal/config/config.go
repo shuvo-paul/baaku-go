@@ -41,8 +41,14 @@ func Load() (*Config, error) {
 
 // DSN returns the Postgres connection string.
 func (p Postgres) DSN() string {
-	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s",
-		p.Host, p.Port, p.User, p.Password, p.DBName)
+	// An empty password omits the segment entirely: pgx's connstring parser
+	// treats the token after an empty "password=" as its value, silently
+	// dropping dbname.
+	dsn := fmt.Sprintf("host=%s port=%s user=%s", p.Host, p.Port, p.User)
+	if p.Password != "" {
+		dsn += " password=" + p.Password
+	}
+	return dsn + " dbname=" + p.DBName
 }
 
 func getenv(key, fallback string) string {
