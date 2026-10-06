@@ -16,6 +16,9 @@ coverage*.html
 .env
 .env.*
 
+# Node
+/node_modules/
+
 # IDE/OS
 .idea/
 .vscode/
@@ -23,3 +26,7 @@ coverage*.html
 
 # air live-reload artifacts
 /tmp/
+
+# built static assets (regenerate with `make assets`)
+/cmd/baaku/static/*
+!/cmd/baaku/static/.gitkeep

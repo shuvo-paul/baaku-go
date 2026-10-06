@@ -1,0 +1,104 @@
+/*
+ * App entry — auth + public BAAKU pages. Cream theme, Noto font stack.
+ * Heritage tokens are imported so auth keeps its navy controls and
+ * heritage utility classes.
+ * Ported from reference/resources/css/app.css — Tailwind v4.
+ */
+@import 'tailwindcss' source(none);
+@import './theme-heritage.css';
+
+[x-cloak] { display: none !important; }
+
+/*
+ * Source list: Go files carry the templ classes (templ compiles to .go).
+ * Narrow per-entry once view trees exist, like the reference does.
+ */
+@source "../../cmd";
+@source "../../internal";
+
+@theme {
+    --font-sans: 'Noto Sans Bengali', 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-display: 'Noto Serif Bengali', 'Noto Sans Bengali', ui-serif, Georgia, serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+
+    /* Design System Colors */
+    --color-canvas-cream: #F3F0EE;
+    --color-lifted-cream: #FCFBFA;
+    --color-ink: #141413;
+    --color-charcoal: #262627;
+    --color-slate-gray: #696969;
+    --color-signal-orange: #CF4500;
+    --color-accent: #ED1C24;
+    --color-clay: #9A3A0A;
+    --color-ghost-cream: #E8E2DA;
+    --color-soft-bone: #F4F4F4;
+    --color-dust-taupe: #D1CDC7;
+
+    /* Elevation shadows */
+    --shadow-nav: 0px 4px 24px 0px rgba(0, 0, 0, 0.04);
+    --shadow-elevated: 0px 24px 48px 0px rgba(0, 0, 0, 0.08);
+}
+
+@utility text-balance {
+    text-wrap: balance;
+}
+
+@keyframes pulse-ring {
+    0% { transform: scale(1); opacity: 1; }
+    100% { transform: scale(2.5); opacity: 0; }
+}
+
+.pulse-dot::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: var(--color-accent);
+    animation: pulse-ring 2s ease-out infinite;
+}
+
+.constitution-body h3 {
+    @apply font-display text-[24px] lg:text-[28px] font-medium tracking-[-0.02em] text-ink mt-16 mb-6 scroll-mt-32;
+}
+.constitution-body h4 {
+    @apply text-[19px] font-semibold tracking-[-0.01em] text-ink mt-10 mb-4 scroll-mt-32;
+}
+.constitution-toc {
+    @apply space-y-4 border-l border-ink/10 pl-6;
+}
+.constitution-toc a {
+    @apply block text-[15px] leading-[1.5] text-slate-gray hover:text-ink transition-colors;
+}
+.constitution-body p {
+    @apply text-[17px] leading-[1.8] text-ink mb-6;
+}
+.constitution-body p:last-child {
+    @apply mb-0;
+}
+.constitution-body ul {
+    @apply pl-6 mb-6 space-y-2;
+}
+.constitution-body li {
+    @apply text-[17px] leading-[1.8] text-ink;
+}
+.constitution-body li > p {
+    @apply mb-2;
+}
+.constitution-body strong {
+    @apply font-bold text-ink;
+}
+.constitution-body table {
+    @apply w-full border-collapse my-10;
+}
+.constitution-body th,
+.constitution-body td {
+    @apply border border-ink/10 px-4 py-3 text-left text-[15px] leading-[1.6] text-ink align-top;
+}
+.constitution-body th {
+    @apply bg-lifted-cream font-bold;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pulse-dot::after {
+        animation: none;
+    }
+}

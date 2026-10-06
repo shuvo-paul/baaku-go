@@ -1,0 +1,19 @@
+{
+    "$schema": "https://www.schemastore.org/package.json",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "build": "npm run build:css && npm run build:js",
+        "build:css": "tailwindcss -i ./assets/css/app.css -o ./cmd/baaku/static/app.css --minify && tailwindcss -i ./assets/css/dashboard.css -o ./cmd/baaku/static/dashboard.css --minify",
+        "build:js": "mkdir -p ./cmd/baaku/static && cp node_modules/htmx.org/dist/htmx.min.js ./cmd/baaku/static/ && cp node_modules/alpinejs/dist/cdn.min.js ./cmd/baaku/static/alpine.min.js",
+        "dev": "tailwindcss -i ./assets/css/app.css -o ./cmd/baaku/static/app.css --watch & tailwindcss -i ./assets/css/dashboard.css -o ./cmd/baaku/static/dashboard.css --watch & wait",
+        "dev:app": "tailwindcss -i ./assets/css/app.css -o ./cmd/baaku/static/app.css --watch",
+        "dev:dashboard": "tailwindcss -i ./assets/css/dashboard.css -o ./cmd/baaku/static/dashboard.css --watch"
+    },
+    "devDependencies": {
+        "@tailwindcss/cli": "^4.1.11",
+        "alpinejs": "^3.17.3",
+        "htmx.org": "^2.0.4",
+        "tailwindcss": "^4.0.7"
+    }
+}

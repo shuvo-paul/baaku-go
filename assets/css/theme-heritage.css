@@ -1,0 +1,152 @@
+/*
+ * Heritage & Horizon — shared theme partial for the dashboard and app
+ * entries. Single light theme (see DESIGN.md). No font tokens and no dark
+ * variant here: each entry owns those (dashboard = Hanken/Source Serif with
+ * inert dark, app = Noto stack).
+ * Ported from reference/resources/css/theme-heritage.css. TallStackUI
+ * indigo-remap blocks omitted — that component lib has no Go port equivalent.
+ */
+@theme {
+    --color-surface: #f7f9fb;
+    --color-surface-container: #eceef0;
+    --color-on-surface: #191c1e;
+    --color-on-surface-variant: #44474e;
+    --color-outline-variant: #c4c6cf;
+
+    /* Oxford Navy — primary. */
+    --color-navy: #000a1e;
+    --color-navy-700: #002147;
+    /* Academy Gold — high-priority accents, used sparingly. */
+    --color-gold: #775a19;
+    /* Inverse primary — light blue for toggle tracks, selected states. */
+    --color-inverse-primary: #aec7f6;
+    /* Functional: error (design #ba1a1a), success (Tailwind emerald-800 #166534). */
+    --color-error: #ba1a1a;
+}
+
+@layer base {
+    body {
+        @apply bg-surface text-on-surface font-sans antialiased;
+    }
+
+    /* Editorial voice: Source Serif 4 for all headings. */
+    h1,
+    h2,
+    h3 {
+        font-family: var(--font-serif);
+    }
+
+    /*
+     * Consistent horizontal padding for every text-like input.
+     * Element-level utilities still win over this base rule.
+     * Checkboxes, radios, and hidden inputs are excluded.
+     */
+    input:not([type='checkbox']):not([type='radio']):not([type='hidden']),
+    select,
+    textarea {
+        @apply px-3;
+    }
+}
+
+@layer components {
+    /* Level 1 elevation: white card, soft navy-tinted diffused shadow. */
+    .card {
+        @apply rounded-lg bg-white shadow-[0_4px_20px_rgba(0,33,71,0.05)];
+    }
+
+    /* Overline / category tag, e.g. "CLASS OF 1998". */
+    .label-caps {
+        @apply text-xs font-bold uppercase tracking-[0.1em];
+    }
+
+    /* Primary button: Oxford Navy, white text, no gradient. */
+    .btn-primary {
+        @apply inline-flex items-center justify-center rounded bg-navy px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-navy-700 focus-visible:ring-2 focus-visible:ring-gold/50;
+    }
+
+    /* Secondary button: transparent, 1px Oxford Navy border. */
+    .btn-secondary {
+        @apply inline-flex items-center justify-center rounded border border-navy px-4 py-2 text-sm font-semibold text-navy transition-colors hover:bg-navy hover:text-white focus-visible:ring-2 focus-visible:ring-gold/50;
+    }
+
+    /*
+     * Publish toggle — inspired by uiverse.io/vinodjangid07/moody-rabbit-65.
+     * Pill track with a white circle thumb; Academy Gold when checked.
+     */
+    .ak-toggle {
+        @apply relative inline-flex h-[30px] w-[50px] cursor-pointer items-center justify-center rounded-[20px] transition-colors duration-200;
+        background-color: var(--color-outline-variant);
+    }
+    .ak-toggle::after {
+        content: "";
+        @apply absolute left-[5px] h-[20px] w-[20px] rounded-full border-[5px] border-white transition-all duration-200;
+        background-color: transparent;
+        box-shadow: 5px 2px 7px rgba(8, 8, 8, 0.26);
+    }
+    .peer:checked + .ak-toggle {
+        background-color: var(--color-inverse-primary);
+    }
+    .peer:checked + .ak-toggle::after {
+        transform: translateX(20px);
+        background-color: white;
+    }
+    .peer:focus-visible + .ak-toggle {
+        @apply ring-2 ring-offset-2;
+        --tw-ring-color: rgba(119, 90, 25, 0.5);
+    }
+
+    /* Editorial prose for post body and rich-text content. */
+    .prose-navy {
+        @apply font-sans text-on-surface leading-relaxed;
+        max-width: 72ch;
+    }
+    .prose-navy h1 {
+        @apply mt-10 mb-4 text-2xl font-bold font-serif text-navy;
+    }
+    .prose-navy h2 {
+        @apply mt-8 mb-3 text-xl font-semibold font-serif text-navy;
+    }
+    .prose-navy h3 {
+        @apply mt-6 mb-2 text-lg font-semibold font-serif text-navy;
+    }
+    .prose-navy p {
+        @apply mb-4;
+    }
+    .prose-navy a {
+        @apply text-navy underline decoration-outline-variant underline-offset-2 hover:text-gold transition-colors;
+    }
+    .prose-navy strong {
+        @apply font-semibold text-navy;
+    }
+    .prose-navy ul,
+    .prose-navy ol {
+        @apply mb-4 pl-6;
+    }
+    .prose-navy ul {
+        @apply list-disc;
+    }
+    .prose-navy ol {
+        @apply list-decimal;
+    }
+    .prose-navy li {
+        @apply mb-1;
+    }
+    .prose-navy blockquote {
+        @apply my-6 border-l-4 border-gold/40 pl-4 italic text-on-surface-variant;
+    }
+    .prose-navy img {
+        @apply my-6 max-w-full rounded-lg;
+    }
+    .prose-navy pre {
+        @apply my-6 overflow-x-auto rounded-lg bg-surface-container p-4 text-sm;
+    }
+    .prose-navy code {
+        @apply rounded bg-surface-container px-1.5 py-0.5 text-sm;
+    }
+    .prose-navy pre code {
+        @apply bg-transparent p-0;
+    }
+    .prose-navy hr {
+        @apply my-8 border-outline-variant;
+    }
+}
