@@ -1,18 +1,20 @@
 package main
 
 import (
-	"log"
 	"net/http"
 	"os"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/shuvo-paul/baaku/internal/config"
+	"github.com/shuvo-paul/baaku/internal/logger"
 )
 
 func main() {
+	l := logger.New()
+
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("baaku: load config: %v", err)
+		l.Fatal().Err(err).Msg("baaku: load config")
 	}
 	_ = cfg // DB pool and router wire up here once routes exist.
 
@@ -20,9 +22,9 @@ func main() {
 	// routes go here
 
 	addr := ":" + port()
-	log.Printf("baaku: listening on %s", addr)
+	l.Info().Str("addr", addr).Msg("baaku: listening")
 	if err := http.ListenAndServe(addr, r); err != nil {
-		log.Fatalf("baaku: %v", err)
+		l.Fatal().Err(err).Msg("baaku: serve")
 	}
 }
 
