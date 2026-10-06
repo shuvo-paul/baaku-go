@@ -1,0 +1,22 @@
+# Binaries
+/bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+
+# Go build cache/output
+*.out
+coverage*.txt
+coverage*.html
+
+# Env files
+.env
+.env.*
+
+# IDE/OS
+.idea/
+.vscode/
+.DS_Store
