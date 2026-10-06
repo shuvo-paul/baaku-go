@@ -13,7 +13,16 @@ import (
 type Config struct {
 	Postgres Postgres
 	Session  Session
-	// TODO: Mail, GoogleDrive sections come later — add fields here.
+	Mail     Mail
+	// TODO: GoogleDrive section comes later — add fields here.
+}
+
+type Mail struct {
+	Host     string // MAIL_HOST
+	Port     string // MAIL_PORT
+	Username string // MAIL_USERNAME
+	Password string // MAIL_PASSWORD
+	From     string // MAIL_FROM
 }
 
 type Postgres struct {
@@ -54,6 +63,15 @@ func Load() (*Config, error) {
 			Secure:   getenvBool("SESSION_SECURE_COOKIE", false),
 			HttpOnly: getenvBool("SESSION_HTTP_ONLY", true),
 			SameSite: getenv("SESSION_SAME_SITE", "lax"),
+		},
+		// Defaults mirror reference/config/mail.php (host 127.0.0.1,
+		// port 2525, from hello@example.com).
+		Mail: Mail{
+			Host:     getenv("MAIL_HOST", "127.0.0.1"),
+			Port:     getenv("MAIL_PORT", "2525"),
+			Username: getenv("MAIL_USERNAME", ""),
+			Password: getenv("MAIL_PASSWORD", ""),
+			From:     getenv("MAIL_FROM", "hello@example.com"),
 		},
 	}
 	return cfg, nil
