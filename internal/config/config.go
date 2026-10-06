@@ -15,8 +15,17 @@ type Config struct {
 	App      App
 	Postgres Postgres
 	Session  Session
+	Mail     Mail
 	Auth     Auth
-	// TODO: Mail, GoogleDrive sections come later — add fields here.
+	// TODO: GoogleDrive section comes later — add fields here.
+}
+
+type Mail struct {
+	Host     string // MAIL_HOST
+	Port     string // MAIL_PORT
+	Username string // MAIL_USERNAME
+	Password string // MAIL_PASSWORD
+	From     string // MAIL_FROM
 }
 
 // App mirrors reference/config/app.php (APP_NAME, APP_KEY).
@@ -87,6 +96,15 @@ func Load() (*Config, error) {
 			Secure:   getenvBool("SESSION_SECURE_COOKIE", false),
 			HttpOnly: getenvBool("SESSION_HTTP_ONLY", true),
 			SameSite: getenv("SESSION_SAME_SITE", "lax"),
+		},
+		// Defaults mirror reference/config/mail.php (host 127.0.0.1,
+		// port 2525, from hello@example.com).
+		Mail: Mail{
+			Host:     getenv("MAIL_HOST", "127.0.0.1"),
+			Port:     getenv("MAIL_PORT", "2525"),
+			Username: getenv("MAIL_USERNAME", ""),
+			Password: getenv("MAIL_PASSWORD", ""),
+			From:     getenv("MAIL_FROM", "hello@example.com"),
 		},
 		Auth: Auth{
 			PasswordTimeout: getenvInt("AUTH_PASSWORD_TIMEOUT", 10800),
