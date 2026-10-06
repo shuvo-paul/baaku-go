@@ -13,6 +13,7 @@ import (
 type Config struct {
 	Postgres Postgres
 	Session  Session
+	Auth     Auth
 	// TODO: Mail, GoogleDrive sections come later — add fields here.
 }
 
@@ -31,6 +32,11 @@ type Session struct {
 	Secure   bool   // SESSION_SECURE_COOKIE
 	HttpOnly bool   // SESSION_HTTP_ONLY
 	SameSite string // SESSION_SAME_SITE
+}
+
+// Auth mirrors reference/config/auth.php sections used by the port.
+type Auth struct {
+	PasswordTimeout int // AUTH_PASSWORD_TIMEOUT, seconds (Fortify password.confirm TTL)
 }
 
 // Load reads .env if present (existing env vars win), then builds Config
@@ -54,6 +60,9 @@ func Load() (*Config, error) {
 			Secure:   getenvBool("SESSION_SECURE_COOKIE", false),
 			HttpOnly: getenvBool("SESSION_HTTP_ONLY", true),
 			SameSite: getenv("SESSION_SAME_SITE", "lax"),
+		},
+		Auth: Auth{
+			PasswordTimeout: getenvInt("AUTH_PASSWORD_TIMEOUT", 10800),
 		},
 	}
 	return cfg, nil
