@@ -18,3 +18,16 @@ WHERE id = sqlc.arg(id);
 UPDATE public.users
 SET email_verified_at = now()::timestamp(0), updated_at = now()::timestamp(0)
 WHERE id = sqlc.arg(id);
+
+-- name: UpdateUserState :exec
+UPDATE public.users
+SET state = sqlc.arg(state), updated_at = now()::timestamp(0)
+WHERE id = sqlc.arg(id);
+
+-- name: SetUserTwoFactor :exec
+UPDATE public.users
+SET two_factor_secret = sqlc.arg(two_factor_secret),
+    two_factor_recovery_codes = sqlc.arg(two_factor_recovery_codes),
+    two_factor_confirmed_at = sqlc.arg(two_factor_confirmed_at),
+    updated_at = now()::timestamp(0)
+WHERE id = sqlc.arg(id);
