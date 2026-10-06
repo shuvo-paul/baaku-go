@@ -1,4 +1,4 @@
-package config
+package config_test
 
 import (
 	"bytes"
@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/shuvo-paul/baaku/internal/config"
 )
 
 func TestLoadFromDotEnv(t *testing.T) {
@@ -23,7 +25,7 @@ func TestLoadFromDotEnv(t *testing.T) {
 	}
 	t.Setenv("DB_HOST", "real.host") // real env must win over .env
 
-	cfg, err := Load()
+	cfg, err := config.Load()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +58,7 @@ func TestLoadDefaultsWithoutDotEnv(t *testing.T) {
 		t.Setenv(k, "")
 	}
 
-	cfg, err := Load()
+	cfg, err := config.Load()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +72,7 @@ func TestLoadDefaultsWithoutDotEnv(t *testing.T) {
 
 func TestAppKeyBytes(t *testing.T) {
 	raw := bytes.Repeat([]byte{0x7f}, 32)
-	app := App{Key: "base64:" + base64.StdEncoding.EncodeToString(raw)}
+	app := config.App{Key: "base64:" + base64.StdEncoding.EncodeToString(raw)}
 	got, err := app.KeyBytes()
 	if err != nil {
 		t.Fatal(err)
@@ -89,7 +91,7 @@ func TestAppKeyBytes(t *testing.T) {
 	if _, err := app.KeyBytes(); err == nil {
 		t.Error("16-byte APP_KEY accepted, want error")
 	}
-	if _, err := (App{Key: "not-base64!!"}).KeyBytes(); err == nil {
+	if _, err := (config.App{Key: "not-base64!!"}).KeyBytes(); err == nil {
 		t.Error("garbage APP_KEY accepted, want error")
 	}
 }

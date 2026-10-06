@@ -1,12 +1,14 @@
-package mailer
+package mailer_test
 
 import (
 	"strings"
 	"testing"
+
+	"github.com/shuvo-paul/baaku/internal/mailer"
 )
 
 func TestResetPasswordRender(t *testing.T) {
-	subject, body, err := ResetPassword(ResetPasswordData{
+	subject, body, err := mailer.ResetPassword(mailer.ResetPasswordData{
 		Name:           "Ada",
 		URL:            "https://baaku.test/reset?token=abc123",
 		ExpiresMinutes: 60,
@@ -32,7 +34,7 @@ func TestResetPasswordRender(t *testing.T) {
 }
 
 func TestVerifyEmailRender(t *testing.T) {
-	subject, body, err := VerifyEmail(VerifyEmailData{
+	subject, body, err := mailer.VerifyEmail(mailer.VerifyEmailData{
 		Name: "Ada",
 		URL:  "https://baaku.test/verify?signature=sig456",
 	})

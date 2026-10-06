@@ -27,26 +27,34 @@ behavior here that `reference/` doesn't have.
 
 ## Directory structure
 
-Follows Layered Architecture — layer-first naming, top layer first. This is the
-canonical layout for all new code; existing packages under `internal/auth/`
-(helpers mixed with handlers, `repo.go` next to domain types) migrate here
-opportunistically — never write new code in the old layout.
+Follows Layered Architecture — layer-first naming, top layer first. All code
+lives here; never write new code outside this layout.
 
 ```
-internal/handler/    HTTP handlers: parse/validate/render only (auth.go, register.go, …)
+internal/handler/    HTTP handlers: parse/validate/render only (empty until routes land)
 internal/service/    business logic + domain types (one subpackage per feature)
+   register/         user registration + validation
+   login/            login/logout service
+   passwordchange/   password change flow
+   password/         shared bcrypt hashing + Laravel password rules
    user/             User, UserState, state machine — mirrors reference/app/Models/User.php
-   confirm/          email confirmation flow
-   passwordreset/    password reset flow
-   emailverify/      email verification flow
+   passwordreset/    password reset broker
+   emailverify/      signed email-verification URLs + MarkVerified
+   session/          session ID + cookie helpers
+   twofactor/        TOTP, recovery codes, 2FA service
 internal/repository/ thin wrappers over sqlc-generated queries (one subpackage per feature)
-   user/
-   passwordreset/
+   user/             users queries + registration transaction
+   passwordreset/    password_reset_tokens
+   twofactor/        2FA secret + replay-guard queries
+   confirm/          password-confirmation cache
+   session/          sessions table store
 internal/middleware/ cross-cutting HTTP middleware (session, CSRF, …)
 internal/config/     env/.env config loading
 internal/database/   data layer: pgx pool + embedded *.sql migrations + sqlc queries/generated
 internal/logger/     shared logging infrastructure
+internal/mailer/     email rendering + sending
 cmd/baaku/           web server entrypoint (router, handler wiring)
 cmd/migrate/         goose migration CLI
 reference/           Laravel app (git submodule — source of truth)
+```
 ```
