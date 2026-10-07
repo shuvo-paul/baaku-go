@@ -9,7 +9,7 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 // LoginPage mirrors reference auth/login.blade.php (Fortify login).
-func LoginPage(appName, csrfToken string) templ.Component {
+func LoginPage(appName, csrfToken, email, errMsg string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -62,15 +62,34 @@ func LoginPage(appName, csrfToken string) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = TextInput("Email", "email", "email", templ.Attributes{"autofocus": true}).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = TextInput("Email", "email", "email", templ.Attributes{"autofocus": true, "value": email}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
+				}
+				if errMsg != "" {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<p class=\"mt-1.5 text-sm font-medium text-red-600\" role=\"alert\">")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var4 string
+					templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(errMsg)
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/login.templ`, Line: 11, Col: 77}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</p>")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
 				}
 				templ_7745c5c3_Err = PasswordInput("Password", "password", nil).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<div class=\"flex items-center justify-between\"><label class=\"flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300\"><input type=\"checkbox\" name=\"remember\" value=\"1\" class=\"rounded border-gray-300 text-indigo-600 focus:ring-indigo-500\"> Remember me</label> <a href=\"/forgot-password\" class=\"text-sm text-indigo-600 hover:text-indigo-500\">Forgot password?</a></div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<div class=\"flex items-center justify-between\"><label class=\"flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300\"><input type=\"checkbox\" name=\"remember\" value=\"1\" class=\"rounded border-gray-300 text-indigo-600 focus:ring-indigo-500\"> Remember me</label> <a href=\"/forgot-password\" class=\"text-sm text-indigo-600 hover:text-indigo-500\">Forgot password?</a></div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -78,7 +97,7 @@ func LoginPage(appName, csrfToken string) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</form><div class=\"mt-4 text-center text-sm text-gray-600 dark:text-gray-400\">No account? <a href=\"/register\" class=\"text-indigo-600 hover:text-indigo-500\">Register</a></div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</form><div class=\"mt-4 text-center text-sm text-gray-600 dark:text-gray-400\">No account? <a href=\"/register\" class=\"text-indigo-600 hover:text-indigo-500\">Register</a></div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

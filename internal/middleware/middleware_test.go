@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -176,6 +177,31 @@ func TestRequireAuth(t *testing.T) {
 				t.Errorf("Location = %q, want %q", rec.Header().Get("Location"), middleware.LoginPath)
 			}
 		})
+	}
+}
+
+func TestRequireAuthStoresIntendedURL(t *testing.T) {
+	store := &fakeSessions{byID: map[string]generated.Session{
+		"s2": {ID: "s2"}, // session row without user → bounced to login
+	}}
+	req := httptest.NewRequest(http.MethodGet, "/dashboard/posts?x=1", nil)
+	req.AddCookie(&http.Cookie{Name: testCookie, Value: "s2"})
+	var called bool
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { called = true })
+	rec := httptest.NewRecorder()
+	middleware.Session(testCookie, store)(middleware.RequireAuth(&fakeUsers{})(next)).ServeHTTP(rec, req)
+
+	if called {
+		t.Fatal("next called for session-less user")
+	}
+	if rec.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302", rec.Code)
+	}
+	if loc := rec.Header().Get("Location"); loc != middleware.LoginPath {
+		t.Errorf("Location = %q, want %q", loc, middleware.LoginPath)
+	}
+	if got := store.byID["s2"].Payload; !strings.Contains(got, `"url.intended":"/dashboard/posts?x=1"`) {
+		t.Errorf("payload = %s, want url.intended stashed", got)
 	}
 }
 

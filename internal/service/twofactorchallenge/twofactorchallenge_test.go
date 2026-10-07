@@ -21,6 +21,7 @@ type fakeSessions struct {
 	promotes int
 	lastID   string
 	lastUID  int64
+	creates  []generated.UpsertSessionParams
 }
 
 func (f *fakeSessions) Load(_ context.Context, id string) (generated.Session, error) {
@@ -38,6 +39,11 @@ func (f *fakeSessions) Promote(_ context.Context, id string, userID int64, paylo
 	s := f.byID[id]
 	s.UserID, s.Payload = &uid, payload
 	f.byID[id] = s
+	return nil
+}
+
+func (f *fakeSessions) Create(_ context.Context, p generated.UpsertSessionParams) error {
+	f.creates = append(f.creates, p)
 	return nil
 }
 
@@ -153,6 +159,30 @@ func TestChallengePreservesOtherPayloadKeys(t *testing.T) {
 func TestPendingPayloadRoundTrip(t *testing.T) {
 	if got := twofactorchallenge.PendingPayload(42); got != `{"login.two_factor":42}` {
 		t.Errorf("PendingPayload(42) = %s", got)
+	}
+}
+
+func TestBeginCreatesPendingSession(t *testing.T) {
+	svc, sessions := newFixture(&fakeVerifier{})
+	sid, err := svc.Begin(context.Background(), 7)
+	if err != nil {
+		t.Fatalf("Begin = %v, want nil", err)
+	}
+	if sid == "" {
+		t.Fatal("Begin returned empty session id")
+	}
+	if len(sessions.creates) != 1 {
+		t.Fatalf("Create called %d times, want 1", len(sessions.creates))
+	}
+	p := sessions.creates[0]
+	if p.ID != sid {
+		t.Errorf("created row id = %q, want %q", p.ID, sid)
+	}
+	if p.UserID != nil {
+		t.Errorf("pending session user_id = %v, want NULL (unguarded guest until Challenge)", p.UserID)
+	}
+	if want := `{"login.two_factor":7}`; p.Payload != want {
+		t.Errorf("payload = %s, want %s", p.Payload, want)
 	}
 }
 

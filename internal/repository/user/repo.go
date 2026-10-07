@@ -2,13 +2,16 @@ package user
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/shuvo-paul/baaku/internal/database/queries/generated"
+	"github.com/shuvo-paul/baaku/internal/service/login"
 	"github.com/shuvo-paul/baaku/internal/service/user"
 )
 
@@ -36,6 +39,31 @@ func (r *Repo) GetByEmail(ctx context.Context, email string) (user.User, error) 
 		return user.User{}, err
 	}
 	return fromGenerated(u), nil
+}
+
+// UserByEmail adapts GetByEmail to the login service's UserByEmail port:
+// pgx.ErrNoRows becomes login.ErrUserNotFound so the service takes its
+// constant-time failure path instead of leaking account existence.
+func (r *Repo) UserByEmail(ctx context.Context, email string) (login.User, error) {
+	u, err := r.GetByEmail(ctx, email)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return login.User{}, login.ErrUserNotFound
+	}
+	if err != nil {
+		return login.User{}, err
+	}
+	return login.User{ID: u.ID, PasswordHash: u.PasswordHash}, nil
+}
+
+// TwoFactorConfirmed reports whether the user's 2FA enrolment is confirmed
+// (login service's TwoFactorCheck port; users.two_factor_confirmed_at IS NOT
+// NULL — a challenge is required before a session may be issued).
+func (r *Repo) TwoFactorConfirmed(ctx context.Context, id int64) (bool, error) {
+	u, err := r.GetByID(ctx, id)
+	if err != nil {
+		return false, err
+	}
+	return u.TwoFactorConfirmedAt != nil, nil
 }
 
 func (r *Repo) Create(ctx context.Context, name, email, passwordHash string, phone *string) (user.User, error) {
