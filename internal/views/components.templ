@@ -1,0 +1,47 @@
+package views
+
+// Card is the shared auth card (reference x-card / x-form-wrapper shell).
+// An empty title renders no heading.
+templ Card(title string) {
+	<div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+		if title != "" {
+			<h1 class="text-center text-2xl font-bold text-gray-900 dark:text-white">{ title }</h1>
+		}
+		{ children... }
+	</div>
+}
+
+// TextInput is the common labelled input (reference x-input): label on top,
+// always required. attrs carries extras (autofocus, value, autocomplete,
+// inputmode); pass nil when there are none.
+templ TextInput(label, name, typ string, attrs templ.Attributes) {
+	<label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+		{ label }
+		<input
+			type={ typ }
+			name={ name }
+			required
+			class="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+			{ attrs... }
+		/>
+	</label>
+}
+
+// PasswordInput mirrors reference x-form.password (type=password).
+templ PasswordInput(label, name string, attrs templ.Attributes) {
+	@TextInput(label, name, "password", attrs)
+}
+
+templ SubmitButton(text string) {
+	<button type="submit" class="w-full rounded-md bg-indigo-600 px-4 py-2 font-semibold text-white hover:bg-indigo-500">{ text }</button>
+}
+
+templ OutlineSubmitButton(text string) {
+	<button type="submit" class="w-full rounded-md border border-gray-300 px-4 py-2 font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300">{ text }</button>
+}
+
+// CSRFToken is the @csrf hidden field; handlers pass the plaintext token
+// (middleware.CSRF accepts it as the _token form proof).
+templ CSRFToken(token string) {
+	<input type="hidden" name="_token" value={ token }/>
+}

@@ -19,8 +19,10 @@ import (
 const testCookie = "baaku_session"
 
 type fakeSessions struct {
-	byID map[string]generated.Session
-	err  error
+	byID    map[string]generated.Session
+	err     error
+	saveErr error
+	saves   int
 }
 
 func (f *fakeSessions) Load(_ context.Context, id string) (generated.Session, error) {
@@ -32,6 +34,25 @@ func (f *fakeSessions) Load(_ context.Context, id string) (generated.Session, er
 		return generated.Session{}, session.ErrNotFound
 	}
 	return s, nil
+}
+
+func (f *fakeSessions) Save(_ context.Context, p generated.UpsertSessionParams) error {
+	if f.saveErr != nil {
+		return f.saveErr
+	}
+	f.saves++
+	if f.byID == nil {
+		f.byID = map[string]generated.Session{}
+	}
+	f.byID[p.ID] = generated.Session{
+		ID:           p.ID,
+		UserID:       p.UserID,
+		IpAddress:    p.IpAddress,
+		UserAgent:    p.UserAgent,
+		Payload:      p.Payload,
+		LastActivity: p.LastActivity,
+	}
+	return nil
 }
 
 type fakeUsers struct {
@@ -71,7 +92,7 @@ func TestRequireAuth(t *testing.T) {
 	tests := []struct {
 		name     string
 		req      *http.Request
-		sessions middleware.SessionLoader
+		sessions middleware.SessionStore
 		users    middleware.UserLoader
 		wantCode int
 		wantNext bool
@@ -107,11 +128,11 @@ func TestRequireAuth(t *testing.T) {
 			wantCode: http.StatusFound,
 		},
 		{
-			name:     "store error is 500",
+			name:     "store error degrades to guest",
 			req:      requestWithCookie("s1"),
 			sessions: &fakeSessions{err: errors.New("db down")},
 			users:    &fakeUsers{},
-			wantCode: http.StatusInternalServerError,
+			wantCode: http.StatusFound,
 		},
 		{
 			name:     "repo error is 500",
@@ -141,7 +162,7 @@ func TestRequireAuth(t *testing.T) {
 				}
 				w.WriteHeader(http.StatusOK)
 			})
-			h := middleware.RequireAuth(testCookie, tt.sessions, tt.users)(next)
+			h := middleware.Session(testCookie, tt.sessions)(middleware.RequireAuth(tt.users)(next))
 			rec := httptest.NewRecorder()
 			h.ServeHTTP(rec, tt.req)
 
@@ -253,10 +274,10 @@ func TestCheckUserSuspended(t *testing.T) {
 		{name: "guest passes", wantCode: http.StatusOK, wantNext: true},
 		{name: "active passes", user: ptr(verifiedUser(user.StateActive)), wantCode: http.StatusOK, wantNext: true},
 		{
-			name:     "suspended redirects with flash key",
+			name:     "suspended redirects with flash",
 			user:     ptr(verifiedUser(user.StateSuspended)),
 			wantCode: http.StatusFound,
-			wantLoc:  middleware.DashboardPath + "?error=" + middleware.SuspendedErrorKey,
+			wantLoc:  middleware.DashboardPath,
 		},
 	}
 

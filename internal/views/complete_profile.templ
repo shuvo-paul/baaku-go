@@ -1,0 +1,21 @@
+package views
+
+// CompleteProfilePage mirrors reference auth/complete-profile.blade.php's form
+// target (profile.complete.store). The reference blade is a two-step Alpine
+// wizard (careers repeat + addresses, multipart upload); this placeholder
+// carries the required address fields — the wizard lands in a later wave.
+templ CompleteProfilePage(appName, csrfToken string) {
+	@Layout(appName) {
+		@Card("Complete profile") {
+			<p class="mb-4 text-sm text-gray-600 dark:text-gray-400">
+				To finish setting up your account, please provide your address details.
+			</p>
+			<form method="POST" action="/profile/complete" class="space-y-4">
+				@CSRFToken(csrfToken)
+				@TextInput("Present address", "present_address", "text", templ.Attributes{"autofocus": true})
+				@TextInput("Permanent address", "permanent_address", "text", nil)
+				@SubmitButton("Save")
+			</form>
+		}
+	}
+}

@@ -1,0 +1,22 @@
+package views
+
+// Layout mirrors reference/resources/views/layouts/app.blade.php: gray page,
+// centered card column, built assets from `make assets`.
+templ Layout(appName string) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>{ appName }</title>
+			<link rel="stylesheet" href="/static/app.css"/>
+		</head>
+		<body class="font-sans antialiased bg-gray-100 dark:bg-gray-900">
+			<div class="min-h-screen flex items-center justify-center">
+				<div class="w-full max-w-md p-6">
+					{ children... }
+				</div>
+			</div>
+		</body>
+	</html>
+}

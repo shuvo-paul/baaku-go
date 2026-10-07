@@ -12,8 +12,6 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/shuvo-paul/baaku/internal/database/queries/generated"
-	"github.com/shuvo-paul/baaku/internal/repository/session"
 	"github.com/shuvo-paul/baaku/internal/service/user"
 )
 
@@ -25,8 +23,8 @@ const (
 )
 
 // SuspendedErrorKey is the flash message key the reference redirects with
-// (__('dashboard.account_suspended')); passed as the error query stub until
-// session flash exists.
+// (__('dashboard.account_suspended')). We have no i18n layer yet, so it rides
+// the flash as-is; swap in the translated string when translations land.
 const SuspendedErrorKey = "dashboard.account_suspended"
 
 // UserLoader loads a user by ID; *user.Repo satisfies it.
@@ -34,10 +32,6 @@ type UserLoader interface {
 	GetByID(ctx context.Context, id int64) (user.User, error)
 }
 
-// SessionLoader resolves a session row by ID; *session.Store satisfies it.
-type SessionLoader interface {
-	Load(ctx context.Context, id string) (generated.Session, error)
-}
 
 type ctxKey struct{}
 
@@ -53,37 +47,21 @@ func WithUser(ctx context.Context, u user.User) context.Context {
 	return context.WithValue(ctx, ctxKey{}, u)
 }
 
-// RequireAuth mirrors Fortify's auth middleware: session cookie → session →
-// user. Missing/invalid session or user redirects to LoginPath (stub);
-// otherwise the user is stored in the request context.
-func RequireAuth(cookieName string, sessions SessionLoader, users UserLoader) func(http.Handler) http.Handler {
+// RequireAuth mirrors Fortify's auth middleware: the session the Session
+// middleware loaded from the context → user. Missing/invalid session or user
+// redirects to LoginPath (stub); otherwise the user is stored in the request
+// context.
+func RequireAuth(users UserLoader) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			c, err := r.Cookie(cookieName)
-			if err != nil || c.Value == "" {
-				redirect(w, r, LoginPath)
-				return
-			}
-			sess, err := sessions.Load(r.Context(), c.Value)
-			if err != nil {
-				if errors.Is(err, session.ErrNotFound) {
-					redirect(w, r, LoginPath)
-					return
-				}
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-			if sess.UserID == nil {
-				redirect(w, r, LoginPath)
-				return
-			}
-			if err != nil {
-				http.Error(w, "internal server error", http.StatusInternalServerError)
+			sess, ok := SessionFromContext(r.Context())
+			if !ok || sess.UserID == nil {
+				Redirect(w, r, LoginPath)
 				return
 			}
 			u, err := users.GetByID(r.Context(), *sess.UserID)
 			if errors.Is(err, pgx.ErrNoRows) {
-				redirect(w, r, LoginPath)
+				Redirect(w, r, LoginPath)
 				return
 			}
 			if err != nil {
@@ -102,11 +80,11 @@ func RequireVerified(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		u, ok := UserFromContext(r.Context())
 		if !ok {
-			redirect(w, r, LoginPath)
+			Redirect(w, r, LoginPath)
 			return
 		}
 		if u.EmailVerifiedAt == nil {
-			redirect(w, r, VerifyEmailPath)
+			Redirect(w, r, VerifyEmailPath)
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -126,21 +104,16 @@ func CheckUserApproved(next http.Handler) http.Handler {
 }
 
 // CheckUserSuspended mirrors reference CheckUserSuspended: a suspended user
-// is redirected to DashboardPath carrying the suspended flash key; everyone
+// is redirected to DashboardPath with the suspended message flash-set
+// (reference: redirect()->route('dashboard')->with('error', ...)); everyone
 // else passes.
-//
-// ponytail: flash rides a query param until session flash exists; move it to
-// a session flash write when the flash layer lands.
 func CheckUserSuspended(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if u, ok := UserFromContext(r.Context()); ok && u.State == user.StateSuspended {
-			redirect(w, r, DashboardPath+"?error="+SuspendedErrorKey)
+			RedirectWithFlash(w, r, DashboardPath, "error", SuspendedErrorKey)
 			return
 		}
 		next.ServeHTTP(w, r)
 	})
 }
 
-func redirect(w http.ResponseWriter, r *http.Request, to string) {
-	http.Redirect(w, r, to, http.StatusFound)
-}

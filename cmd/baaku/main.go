@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/shuvo-paul/baaku/internal/config"
 	"github.com/shuvo-paul/baaku/internal/logger"
+	"github.com/shuvo-paul/baaku/internal/views"
 )
 
 // Built assets (make assets). all: keeps .gitkeep so go build works pre-build.
@@ -23,9 +24,13 @@ func main() {
 	if err != nil {
 		l.Fatal().Err(err).Msg("baaku: load config")
 	}
-	_ = cfg // DB pool and router wire up here once routes exist.
-
 	r := chi.NewRouter()
+
+	// W0-4 throwaway: proves the templ render pipeline (layout + Fortify form
+	// fields). Delete when real auth handlers land in the next wave.
+	r.Get("/preview/login", func(w http.ResponseWriter, req *http.Request) {
+		views.LoginPage(cfg.App.Name, "").Render(req.Context(), w)
+	})
 	// routes go here
 
 	static, err := fs.Sub(staticFS, "static")
