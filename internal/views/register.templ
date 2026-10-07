@@ -1,0 +1,25 @@
+package views
+
+// RegisterPage mirrors reference auth/register.blade.php. The reference blade
+// is a two-step Alpine wizard (education repeat + account details); this
+// placeholder carries the Fortify POST /register account fields — the
+// education wizard lands with its Alpine wiring in a later wave.
+templ RegisterPage(appName, csrfToken string) {
+	@Layout(appName) {
+		@Card("Register") {
+			<form method="POST" action="/register" class="space-y-4">
+				@CSRFToken(csrfToken)
+				@TextInput("Name", "name", "text", templ.Attributes{"autofocus": true})
+				@TextInput("Email", "email", "email", nil)
+				@TextInput("Phone", "phone", "tel", nil)
+				@PasswordInput("Password", "password", nil)
+				@PasswordInput("Confirm password", "password_confirmation", nil)
+				@SubmitButton("Register")
+			</form>
+			<div class="mt-4 text-center text-sm text-gray-600 dark:text-gray-400">
+				Already registered?
+				<a href="/login" class="text-indigo-600 hover:text-indigo-500">Sign in</a>
+			</div>
+		}
+	}
+}

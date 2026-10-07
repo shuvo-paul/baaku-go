@@ -1,0 +1,23 @@
+package views
+
+// VerifyEmailPage mirrors reference auth/verify-email.blade.php (Fortify
+// verification.send + logout).
+templ VerifyEmailPage(appName, csrfToken string) {
+	@Layout(appName) {
+		@Card("Verify email") {
+			<p class="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
+				Thanks for signing up! Before getting started, could you verify your email address by clicking on the link we just emailed to you?
+			</p>
+			// TODO(wave 2): "verification-link-sent" status flash banner.
+			<div class="mt-6 space-y-4">
+				<form method="POST" action="/email/verification-notification">
+					@CSRFToken(csrfToken)
+					@SubmitButton("Resend verification email")
+				</form>
+				<form method="POST" action="/logout">
+					@OutlineSubmitButton("Log out")
+				</form>
+			</div>
+		}
+	}
+}

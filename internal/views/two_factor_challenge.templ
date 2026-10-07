@@ -1,0 +1,28 @@
+package views
+
+// TwoFactorChallengePage mirrors reference auth/two-factor-challenge.blade.php
+// (Fortify two-factor.login): TOTP code form + recovery-code form.
+templ TwoFactorChallengePage(appName, csrfToken string) {
+	@Layout(appName) {
+		@Card("Two-factor authentication") {
+			<p class="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
+				Please confirm access to your account by entering the authentication code provided by your authenticator application.
+			</p>
+			<form method="POST" action="/two-factor-challenge" class="mt-6 space-y-4">
+				@CSRFToken(csrfToken)
+				@TextInput("Code", "code", "text", templ.Attributes{"inputmode": "numeric", "autocomplete": "one-time-code", "autofocus": true})
+				@SubmitButton("Sign in")
+			</form>
+			<div class="mt-6 border-t border-gray-200 pt-4 dark:border-gray-700">
+				<form method="POST" action="/two-factor-challenge" class="space-y-4">
+					@CSRFToken(csrfToken)
+					<p class="text-sm text-gray-600 dark:text-gray-400">
+						Please confirm access to your account by entering one of your emergency recovery codes.
+					</p>
+					@TextInput("Recovery code", "recovery_code", "text", templ.Attributes{"autocomplete": "one-time-code"})
+					@OutlineSubmitButton("Use a recovery code")
+				</form>
+			</div>
+		}
+	}
+}
