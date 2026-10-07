@@ -35,6 +35,13 @@ func (f *fakeStore) SetTwoFactor(_ context.Context, id int64, secret, codes stri
 	return nil
 }
 
+func (f *fakeStore) ClearTwoFactor(_ context.Context, id int64) error {
+	u := f.users[id]
+	u.TwoFactorSecret, u.TwoFactorRecoveryCodes, u.TwoFactorConfirmedAt = nil, nil, nil
+	f.users[id] = u
+	return nil
+}
+
 type fakeGuard struct{ claimed map[string]bool }
 
 func (g *fakeGuard) Claim(_ context.Context, code string, _, _ time.Time) (bool, error) {
@@ -319,5 +326,18 @@ func TestHasEnabledTwoFactor(t *testing.T) {
 	h.store.users[1] = u
 	if ok, _ := h.svc.HasEnabledTwoFactor(ctx, 1); !ok {
 		t.Error("not enabled for secret + confirmed_at")
+	}
+}
+
+func TestDisableClearsAllTwoFactorFields(t *testing.T) {
+	h := newHarness(t, false)
+	seedConfirmed(t, h)
+	if err := h.svc.Disable(context.Background(), 1); err != nil {
+		t.Fatalf("Disable = %v, want nil", err)
+	}
+	u := h.store.users[1]
+	if u.TwoFactorSecret != nil || u.TwoFactorRecoveryCodes != nil || u.TwoFactorConfirmedAt != nil {
+		t.Errorf("Disable left state behind: secret=%v codes=%v confirmed=%v",
+			u.TwoFactorSecret, u.TwoFactorRecoveryCodes, u.TwoFactorConfirmedAt)
 	}
 }

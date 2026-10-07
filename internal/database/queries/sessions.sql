@@ -19,3 +19,12 @@ DELETE FROM public.sessions WHERE user_id = sqlc.arg(user_id);
 
 -- name: DeleteExpiredSessions :exec
 DELETE FROM public.sessions WHERE last_activity < sqlc.arg(cutoff);
+
+-- name: PromoteSession :exec
+-- Attaches an authenticated user to a pending (2FA-challenge) session row
+-- and replaces its payload, clearing the pending-login flag.
+UPDATE public.sessions
+SET user_id = sqlc.arg(user_id),
+    payload = sqlc.arg(payload),
+    last_activity = now()::timestamp(0)
+WHERE id = sqlc.arg(id);
