@@ -20,10 +20,11 @@ var (
 const replayTTL = Window * 60 * time.Second
 
 // Store is the persistence surface the service needs. *user.Repo satisfies
-// GetByID and SetTwoFactor; *Repo adds the replay guard.
+// GetByID, SetTwoFactor, and ClearTwoFactor; *Repo adds the replay guard.
 type Store interface {
 	GetByID(ctx context.Context, id int64) (user.User, error)
 	SetTwoFactor(ctx context.Context, id int64, secret, recoveryCodes string, confirmedAt *time.Time) error
+	ClearTwoFactor(ctx context.Context, id int64) error
 }
 
 // ReplayGuard claims a TOTP code for single use (Fortify's cache-backed
@@ -186,6 +187,13 @@ func (s *Service) HasEnabledTwoFactor(ctx context.Context, userID int64) (bool, 
 		return false, err
 	}
 	return u.TwoFactorSecret != nil && u.TwoFactorConfirmedAt != nil, nil
+}
+
+// Disable clears the stored secret, recovery codes, and confirmation time
+// (Fortify DELETE /user/2fa → DisableTwoFactorAuthentication). The password-
+// confirm gate belongs to the HTTP handler, not this service.
+func (s *Service) Disable(ctx context.Context, userID int64) error {
+	return s.store.ClearTwoFactor(ctx, userID)
 }
 
 // verifyWithReplay checks the TOTP code and claims it for single use within

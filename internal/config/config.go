@@ -29,9 +29,11 @@ type Mail struct {
 }
 
 // App mirrors reference/config/app.php (APP_NAME, APP_KEY).
+// App mirrors reference/config/app.php (APP_NAME, APP_KEY, APP_URL).
 type App struct {
 	Name string
 	Key  string
+	URL  string // APP_URL, base for signed verification links
 }
 
 // KeyBytes returns the decoded APP_KEY (Laravel "base64:" + base64 32 bytes),
@@ -80,6 +82,7 @@ func Load() (*Config, error) {
 			// deployments set APP_NAME/APP_KEY in .env.
 			Name: getenv("APP_NAME", "Laravel"),
 			Key:  getenv("APP_KEY", ""),
+			URL:  getenv("APP_URL", "http://localhost"),
 		},
 		Postgres: Postgres{
 			Host:     getenv("DB_HOST", "127.0.0.1"),

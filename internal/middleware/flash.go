@@ -12,10 +12,15 @@ import (
 
 // sessionPayload is the JSON stored in the sessions.payload text column.
 //
-// ponytail: only the flash bucket exists today; other Laravel payload keys
-// (e.g. _token) join this struct when a feature needs them.
+// ponytail: only the flash bucket and the pending-2FA flag exist today;
+// other Laravel payload keys (e.g. _token) join this struct when a feature
+// needs them.
 type sessionPayload struct {
 	Flash map[string]string `json:"flash,omitempty"`
+	// LoginTwoFactor is the pending-2FA login flag (user id), written by
+	// the twofactorchallenge service. Listed here so flash writes don't
+	// drop it when re-marshaling the payload.
+	LoginTwoFactor int64 `json:"login.two_factor,omitempty"`
 }
 
 func payloadFlash(raw string) map[string]string {

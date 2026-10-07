@@ -29,6 +29,10 @@ func (r *Repo) SetTwoFactor(ctx context.Context, id int64, secret, recoveryCodes
 	return r.users.SetTwoFactor(ctx, id, secret, recoveryCodes, confirmedAt)
 }
 
+func (r *Repo) ClearTwoFactor(ctx context.Context, id int64) error {
+	return r.users.ClearTwoFactor(ctx, id)
+}
+
 // Claim records the code in the cache table (Fortify's replay-guard cache).
 // Returns true when the code was newly claimed.
 func (r *Repo) Claim(ctx context.Context, code string, usedAt, expiresAt time.Time) (bool, error) {

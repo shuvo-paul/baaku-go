@@ -31,3 +31,23 @@ SET two_factor_secret = sqlc.arg(two_factor_secret),
     two_factor_confirmed_at = sqlc.arg(two_factor_confirmed_at),
     updated_at = now()::timestamp(0)
 WHERE id = sqlc.arg(id);
+
+-- name: ClearUserTwoFactor :exec
+-- Wipes the 2FA secret, recovery codes, and confirmation time in one write
+-- (Fortify DisableTwoFactorAuthentication clears all three columns).
+UPDATE public.users
+SET two_factor_secret = NULL,
+    two_factor_recovery_codes = NULL,
+    two_factor_confirmed_at = NULL,
+    updated_at = now()::timestamp(0)
+WHERE id = sqlc.arg(id);
+
+-- name: UpdateUserProfile :exec
+-- Saves name + email (UpdateUserProfileInformation); the caller decides
+-- email_verified_at — nil when the email changed, current value otherwise.
+UPDATE public.users
+SET name = sqlc.arg(name),
+    email = sqlc.arg(email),
+    email_verified_at = sqlc.arg(email_verified_at),
+    updated_at = now()::timestamp(0)
+WHERE id = sqlc.arg(id);

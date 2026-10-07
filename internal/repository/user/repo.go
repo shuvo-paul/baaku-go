@@ -67,6 +67,7 @@ func (r *Repo) SetEmailVerified(ctx context.Context, id int64) error {
 // SetTwoFactor stores the 2FA secret, recovery codes, and confirmation time.
 // ponytail: no NULL-clear path for disable-2FA; add a ClearTwoFactor query when
 // the Fortify disable flow is ported.
+// SetTwoFactor stores the 2FA secret, recovery codes, and confirmation time.
 func (r *Repo) SetTwoFactor(ctx context.Context, id int64, secret, recoveryCodes string, confirmedAt *time.Time) error {
 	var confirmed pgtype.Timestamp
 	if confirmedAt != nil {
@@ -77,6 +78,27 @@ func (r *Repo) SetTwoFactor(ctx context.Context, id int64, secret, recoveryCodes
 		TwoFactorSecret:        &secret,
 		TwoFactorRecoveryCodes: &recoveryCodes,
 		TwoFactorConfirmedAt:   confirmed,
+	})
+}
+
+// ClearTwoFactor wipes the 2FA secret, recovery codes, and confirmation time
+// (Fortify DisableTwoFactorAuthentication).
+func (r *Repo) ClearTwoFactor(ctx context.Context, id int64) error {
+	return r.q.ClearUserTwoFactor(ctx, id)
+}
+
+// UpdateProfile saves name + email; a nil emailVerifiedAt clears the column
+// (email changed), a non-nil value preserves it.
+func (r *Repo) UpdateProfile(ctx context.Context, id int64, name, email string, emailVerifiedAt *time.Time) error {
+	var verified pgtype.Timestamp
+	if emailVerifiedAt != nil {
+		verified = pgtype.Timestamp{Time: *emailVerifiedAt, Valid: true}
+	}
+	return r.q.UpdateUserProfile(ctx, generated.UpdateUserProfileParams{
+		ID:              id,
+		Name:            name,
+		Email:           email,
+		EmailVerifiedAt: verified,
 	})
 }
 

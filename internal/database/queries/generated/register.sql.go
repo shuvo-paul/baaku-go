@@ -88,6 +88,21 @@ func (q *Queries) CreateProfile(ctx context.Context, userID int64) (Profile, err
 	return i, err
 }
 
+const getProfileCompleteness = `-- name: GetProfileCompleteness :one
+SELECT gender IS NOT NULL AND blood_group IS NOT NULL AS complete
+FROM public.profiles
+WHERE user_id = $1
+`
+
+// Profile::isComplete() = gender AND blood_group non-null. A missing profile
+// row surfaces as pgx.ErrNoRows; callers treat that as incomplete.
+func (q *Queries) GetProfileCompleteness(ctx context.Context, userID int64) (*bool, error) {
+	row := q.db.QueryRow(ctx, getProfileCompleteness, userID)
+	var complete *bool
+	err := row.Scan(&complete)
+	return complete, err
+}
+
 const getUserByPhone = `-- name: GetUserByPhone :one
 SELECT id, name, email, state, email_verified_at, phone, phone_verified_at, password, remember_token, created_at, updated_at, two_factor_secret, two_factor_recovery_codes, two_factor_confirmed_at FROM public.users WHERE phone = $1
 `

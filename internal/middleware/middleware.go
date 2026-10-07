@@ -32,7 +32,6 @@ type UserLoader interface {
 	GetByID(ctx context.Context, id int64) (user.User, error)
 }
 
-
 type ctxKey struct{}
 
 // UserFromContext returns the authenticated user stored by RequireAuth.
@@ -117,3 +116,38 @@ func CheckUserSuspended(next http.Handler) http.Handler {
 	})
 }
 
+// CompleteProfilePath is the profile-completion form route (reference route
+// name profile.complete). Stub until views land.
+const CompleteProfilePath = "/profile/complete"
+
+// ProfileCompleteness reports whether a user's profile is complete;
+// *profile.Repo satisfies it.
+type ProfileCompleteness interface {
+	Complete(ctx context.Context, userID int64) (bool, error)
+}
+
+// CompleteProfileCheck mirrors App\Http\Middleware\CompleteProfileCheck:
+// users whose profile lacks gender or blood_group are redirected to the
+// profile-completion form; complete profiles pass. Guests pass through —
+// auth middleware owns that redirect.
+func CompleteProfileCheck(check ProfileCompleteness) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			u, ok := UserFromContext(r.Context())
+			if !ok {
+				next.ServeHTTP(w, r)
+				return
+			}
+			complete, err := check.Complete(r.Context(), u.ID)
+			if err != nil {
+				http.Error(w, "internal server error", http.StatusInternalServerError)
+				return
+			}
+			if !complete {
+				Redirect(w, r, CompleteProfilePath)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}

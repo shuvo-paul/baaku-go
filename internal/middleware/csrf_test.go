@@ -61,15 +61,15 @@ func TestCSRFMutatingRequests(t *testing.T) {
 	cookie := sealedToken(t, token)
 
 	tests := []struct {
-		name       string
-		method     string
-		path       string
-		cookieVal  string
-		header     string
-		form       url.Values
-		exempt     []string
-		wantCode   int
-		wantNext   bool
+		name      string
+		method    string
+		path      string
+		cookieVal string
+		header    string
+		form      url.Values
+		exempt    []string
+		wantCode  int
+		wantNext  bool
 	}{
 		{
 			name:      "matching X-XSRF-TOKEN header passes",
@@ -121,11 +121,11 @@ func TestCSRFMutatingRequests(t *testing.T) {
 			wantCode:  status419,
 		},
 		{
-			name:      "no cookie is 419",
-			method:    http.MethodPost,
-			path:      "/login",
-			header:    cookie,
-			wantCode:  status419,
+			name:     "no cookie is 419",
+			method:   http.MethodPost,
+			path:     "/login",
+			header:   cookie,
+			wantCode: status419,
 		},
 		{
 			name:      "unparseable cookie is 419",

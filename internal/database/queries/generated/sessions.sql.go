@@ -54,6 +54,27 @@ func (q *Queries) GetSessionByID(ctx context.Context, id string) (Session, error
 	return i, err
 }
 
+const promoteSession = `-- name: PromoteSession :exec
+UPDATE public.sessions
+SET user_id = $1,
+    payload = $2,
+    last_activity = now()::timestamp(0)
+WHERE id = $3
+`
+
+type PromoteSessionParams struct {
+	UserID  *int64
+	Payload string
+	ID      string
+}
+
+// Attaches an authenticated user to a pending (2FA-challenge) session row
+// and replaces its payload, clearing the pending-login flag.
+func (q *Queries) PromoteSession(ctx context.Context, arg PromoteSessionParams) error {
+	_, err := q.db.Exec(ctx, promoteSession, arg.UserID, arg.Payload, arg.ID)
+	return err
+}
+
 const upsertSession = `-- name: UpsertSession :exec
 INSERT INTO public.sessions (id, user_id, ip_address, user_agent, payload, last_activity)
 VALUES ($1, $2, $3, $4, $5, $6)

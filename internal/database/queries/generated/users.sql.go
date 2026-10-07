@@ -11,6 +11,22 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const clearUserTwoFactor = `-- name: ClearUserTwoFactor :exec
+UPDATE public.users
+SET two_factor_secret = NULL,
+    two_factor_recovery_codes = NULL,
+    two_factor_confirmed_at = NULL,
+    updated_at = now()::timestamp(0)
+WHERE id = $1
+`
+
+// Wipes the 2FA secret, recovery codes, and confirmation time in one write
+// (Fortify DisableTwoFactorAuthentication clears all three columns).
+func (q *Queries) ClearUserTwoFactor(ctx context.Context, id int64) error {
+	_, err := q.db.Exec(ctx, clearUserTwoFactor, id)
+	return err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO public.users (name, email, password, phone, created_at, updated_at)
 VALUES ($1, $2, $3, $4, now()::timestamp(0), now()::timestamp(0))
@@ -142,6 +158,34 @@ type UpdateUserPasswordParams struct {
 
 func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error {
 	_, err := q.db.Exec(ctx, updateUserPassword, arg.Password, arg.ID)
+	return err
+}
+
+const updateUserProfile = `-- name: UpdateUserProfile :exec
+UPDATE public.users
+SET name = $1,
+    email = $2,
+    email_verified_at = $3,
+    updated_at = now()::timestamp(0)
+WHERE id = $4
+`
+
+type UpdateUserProfileParams struct {
+	Name            string
+	Email           string
+	EmailVerifiedAt pgtype.Timestamp
+	ID              int64
+}
+
+// Saves name + email (UpdateUserProfileInformation); the caller decides
+// email_verified_at — nil when the email changed, current value otherwise.
+func (q *Queries) UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) error {
+	_, err := q.db.Exec(ctx, updateUserProfile,
+		arg.Name,
+		arg.Email,
+		arg.EmailVerifiedAt,
+		arg.ID,
+	)
 	return err
 }
 

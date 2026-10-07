@@ -53,6 +53,16 @@ func (s *Store) GC(ctx context.Context, now time.Time, lifetime time.Duration) e
 	return s.q.DeleteExpiredSessions(ctx, int32(expiryCutoff(now, lifetime)))
 }
 
+// Promote attaches an authenticated user to a pending session row and
+// replaces its payload (2FA challenge success clears the pending flag).
+func (s *Store) Promote(ctx context.Context, id string, userID int64, payload string) error {
+	return s.q.PromoteSession(ctx, generated.PromoteSessionParams{
+		UserID:  &userID,
+		Payload: payload,
+		ID:      id,
+	})
+}
+
 // expiryCutoff returns the unix timestamp before which sessions are expired.
 func expiryCutoff(now time.Time, lifetime time.Duration) int64 {
 	return now.Add(-lifetime).Unix()
