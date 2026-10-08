@@ -333,3 +333,78 @@ func TestCheckUserSuspended(t *testing.T) {
 		})
 	}
 }
+
+func TestRequirePasswordConfirmation(t *testing.T) {
+	tests := []struct {
+		name      string
+		guest     bool
+		confirmed bool
+		wantCode  int
+		wantNext  bool
+		wantLoc   string
+	}{
+		{name: "guest passes", guest: true, wantCode: http.StatusOK, wantNext: true},
+		{name: "confirmed passes", confirmed: true, wantCode: http.StatusOK, wantNext: true},
+		{name: "unconfirmed redirects", wantCode: http.StatusFound, wantLoc: middleware.ConfirmPasswordPath},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/user/two-factor-authentication", nil)
+			if !tt.guest {
+				req = req.WithContext(middleware.WithUser(req.Context(), user.User{ID: 3}))
+			}
+			var called bool
+			next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				called = true
+				w.WriteHeader(http.StatusOK)
+			})
+			rec := httptest.NewRecorder()
+			middleware.RequirePasswordConfirmation(confirmedCheck{tt.confirmed})(next).ServeHTTP(rec, req)
+			if rec.Code != tt.wantCode {
+				t.Errorf("status = %d, want %d", rec.Code, tt.wantCode)
+			}
+			if called != tt.wantNext {
+				t.Errorf("next called = %v, want %v", called, tt.wantNext)
+			}
+			if tt.wantLoc != "" && rec.Header().Get("Location") != tt.wantLoc {
+				t.Errorf("Location = %q, want %q", rec.Header().Get("Location"), tt.wantLoc)
+			}
+		})
+	}
+}
+
+type confirmedCheck struct{ ok bool }
+
+func (c confirmedCheck) Confirmed(context.Context, int64) bool { return c.ok }
+
+func TestMethodOverride(t *testing.T) {
+	tests := []struct {
+		name       string
+		method     string
+		form       string
+		wantMethod string
+	}{
+		{name: "POST unchanged", method: http.MethodPost, wantMethod: http.MethodPost},
+		{name: "POST with _method=PUT", method: http.MethodPost, form: "_method=PUT", wantMethod: http.MethodPut},
+		{name: "POST with _method=DELETE", method: http.MethodPost, form: "_method=DELETE", wantMethod: http.MethodDelete},
+		{name: "GET ignores _method", method: http.MethodGet, wantMethod: http.MethodGet},
+		{name: "bogus _method ignored", method: http.MethodPost, form: "_method=TRACE", wantMethod: http.MethodPost},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got string
+			next := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) { got = r.Method })
+			var req *http.Request
+			if tt.form != "" {
+				req = httptest.NewRequest(tt.method, "/x", strings.NewReader(tt.form))
+				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			} else {
+				req = httptest.NewRequest(tt.method, "/x", nil)
+			}
+			middleware.MethodOverride(next).ServeHTTP(httptest.NewRecorder(), req)
+			if got != tt.wantMethod {
+				t.Errorf("method = %q, want %q", got, tt.wantMethod)
+			}
+		})
+	}
+}

@@ -128,3 +128,54 @@ func (q *Queries) GetUserByPhone(ctx context.Context, phone *string) (User, erro
 	)
 	return i, err
 }
+
+const upsertProfileDetails = `-- name: UpsertProfileDetails :one
+INSERT INTO public.profiles (user_id, gender, blood_group, present_address, permanent_address, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, now()::timestamp(0), now()::timestamp(0))
+ON CONFLICT (user_id) DO UPDATE
+SET gender = EXCLUDED.gender,
+    blood_group = EXCLUDED.blood_group,
+    present_address = EXCLUDED.present_address,
+    permanent_address = EXCLUDED.permanent_address,
+    updated_at = now()::timestamp(0)
+RETURNING id, user_id, photo_path, date_of_birth, gender, blood_group, present_address, permanent_address, social_links, website, emergency_contact, created_at, updated_at, local_names
+`
+
+type UpsertProfileDetailsParams struct {
+	UserID           int64
+	Gender           *string
+	BloodGroup       *string
+	PresentAddress   *string
+	PermanentAddress *string
+}
+
+// CompleteProfileController store (reference UpdateProfileDetails +
+// firstOrCreate): fills the gate fields; a missing row is created so the
+// reference firstOrCreate semantics hold.
+func (q *Queries) UpsertProfileDetails(ctx context.Context, arg UpsertProfileDetailsParams) (Profile, error) {
+	row := q.db.QueryRow(ctx, upsertProfileDetails,
+		arg.UserID,
+		arg.Gender,
+		arg.BloodGroup,
+		arg.PresentAddress,
+		arg.PermanentAddress,
+	)
+	var i Profile
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.PhotoPath,
+		&i.DateOfBirth,
+		&i.Gender,
+		&i.BloodGroup,
+		&i.PresentAddress,
+		&i.PermanentAddress,
+		&i.SocialLinks,
+		&i.Website,
+		&i.EmergencyContact,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LocalNames,
+	)
+	return i, err
+}

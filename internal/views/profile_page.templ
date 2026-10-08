@@ -1,0 +1,94 @@
+package views
+
+import "strings"
+
+// ProfilePage mirrors the security tab of reference profile/show.blade.php
+// (the updatePasswords and twoFactorAuthentication cards) — the details/
+// education/career tabs land in later waves. The 2FA section is flash-driven
+// exactly like the reference blade. Labels are the reference lang/en/auth.php
+// strings (English-literals stance, see generate.go).
+
+// profileStatusText maps the reference session('status') values to their
+// success messages; two-factor-recovery-codes-generated is silent in the
+// reference too.
+func profileStatusText(status string) string {
+	switch status {
+	case "password-updated":
+		return "Password updated successfully."
+	case "two-factor-authentication-enabled":
+		return "Two-factor authentication has been enabled."
+	case "two-factor-authentication-confirmed":
+		return "Two-factor authentication has been confirmed."
+	}
+	return ""
+}
+
+templ ProfilePage(appName, csrfToken, status, confirmation, recoveryCodes, errMsg, setupKey string) {
+	@Layout(appName) {
+		@Card("Profile") {
+			@StatusText(profileStatusText(status))
+			<h2 class="mt-6 text-lg font-semibold text-gray-900 dark:text-white">Update Password</h2>
+			@ErrText(errMsg)
+			<form method="POST" action="/user/password" class="mt-4 space-y-4">
+				@CSRFToken(csrfToken)
+				<input type="hidden" name="_method" value="PUT"/>
+				@PasswordInput("Current password", "current_password", templ.Attributes{"autofocus": true})
+				@PasswordInput("Password", "password", nil)
+				@PasswordInput("Confirm password", "password_confirmation", nil)
+				@SubmitButton("Save")
+			</form>
+			<h2 class="mt-6 text-lg font-semibold text-gray-900 dark:text-white">Two-Factor Authentication</h2>
+			if status == "two-factor-authentication-enabled" {
+				if confirmation == "required" {
+					<p class="mt-4 text-sm text-gray-600 dark:text-gray-400">
+						Scan the QR code with your authenticator app and enter the code below to confirm two-factor authentication.
+					</p>
+					<div class="mt-4 flex justify-center">
+						<img src="/user/two-factor-qr-code" alt="Two factor authentication QR code" class="h-48 w-48"/>
+					</div>
+					<p class="mt-4 text-sm text-gray-600 dark:text-gray-400">
+						Setup Key:
+						<code class="rounded bg-gray-100 px-2 py-1 dark:bg-gray-700">{ setupKey }</code>
+					</p>
+					<form method="POST" action="/user/confirmed-two-factor-authentication" class="mt-4 space-y-4">
+						@CSRFToken(csrfToken)
+						@TextInput("Authentication Code", "code", "text", templ.Attributes{"inputmode": "numeric", "autofocus": true})
+						@SubmitButton("Confirm")
+					</form>
+				}
+				if recoveryCodes != "" {
+					<p class="mt-4 text-sm text-gray-600 dark:text-gray-400">
+						Store these recovery codes in a secure password manager. They can be used to recover access to your account if your two-factor authentication device is lost.
+					</p>
+					<div class="mt-2 rounded-md bg-gray-100 p-4 dark:bg-gray-700">
+						for _, code := range strings.Split(recoveryCodes, "\n") {
+							<code class="block text-sm">{ code }</code>
+						}
+					</div>
+				}
+			}
+			if status == "two-factor-authentication-confirmed" {
+				<div class="mt-4 flex space-x-4">
+					<form method="POST" action="/user/two-factor-authentication">
+						@CSRFToken(csrfToken)
+						<input type="hidden" name="_method" value="DELETE"/>
+						@DangerSubmitButton("Disable Two-Factor Authentication")
+					</form>
+					<form method="POST" action="/user/two-factor-recovery-codes">
+						@CSRFToken(csrfToken)
+						@OutlineSubmitButton("Regenerate Recovery Codes")
+					</form>
+				</div>
+			}
+			if status == "" || (status != "two-factor-authentication-enabled" && status != "two-factor-authentication-confirmed") {
+				<form method="POST" action="/user/two-factor-authentication" class="mt-4">
+					@CSRFToken(csrfToken)
+					@SubmitButton("Enable Two-Factor Authentication")
+				</form>
+			}
+			<div class="mt-6 text-center">
+				<a href="/dashboard" class="text-sm text-indigo-600 hover:text-indigo-500">Back to dashboard</a>
+			</div>
+		}
+	}
+}

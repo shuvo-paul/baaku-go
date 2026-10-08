@@ -45,6 +45,29 @@ templ OptionalInput(label, name, typ string, attrs templ.Attributes) {
 	</label>
 }
 
+// Option is one <option>: value + display label.
+type Option struct {
+	Value string
+	Label string
+}
+
+// Select mirrors reference x-select: label on top, always required.
+templ Select(label, name string, options []Option, attrs templ.Attributes) {
+	<label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+		{ label }
+		<select
+			name={ name }
+			required
+			class="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+			{ attrs... }
+		>
+			for _, o := range options {
+				<option value={ o.Value }>{ o.Label }</option>
+			}
+		</select>
+	</label>
+}
+
 // ErrText is the inline red error paragraph (login.templ pattern).
 templ ErrText(msg string) {
 	if msg != "" {
@@ -65,6 +88,12 @@ templ SubmitButton(text string) {
 
 templ OutlineSubmitButton(text string) {
 	<button type="submit" class="w-full rounded-md border border-gray-300 px-4 py-2 font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300">{ text }</button>
+}
+
+// DangerSubmitButton is the red destructive submit (reference x-button
+// color="red").
+templ DangerSubmitButton(text string) {
+	<button type="submit" class="w-full rounded-md bg-red-600 px-4 py-2 font-semibold text-white hover:bg-red-500">{ text }</button>
 }
 
 // CSRFToken is the @csrf hidden field; handlers pass the plaintext token

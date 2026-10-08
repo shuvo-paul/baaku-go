@@ -9,10 +9,12 @@ tool (
 )
 
 require (
+	github.com/a-h/templ v0.3.1070
 	github.com/go-chi/chi/v5 v5.3.2
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/phuslu/log v1.0.137
 	github.com/pressly/goose/v3 v3.28.0
+	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	golang.org/x/crypto v0.57.0
 )
 
@@ -21,7 +23,6 @@ require (
 	dario.cat/mergo v1.0.2 // indirect
 	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/a-h/parse v0.0.0-20250122154542-74294addb73e // indirect
-	github.com/a-h/templ v0.3.1070 // indirect
 	github.com/air-verse/air v1.67.4 // indirect
 	github.com/andybalholm/brotli v1.2.6 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect

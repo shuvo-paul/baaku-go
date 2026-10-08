@@ -8,11 +8,13 @@ package views
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-// CompleteProfilePage mirrors reference auth/complete-profile.blade.php's form
-// target (profile.complete.store). The reference blade is a two-step Alpine
-// wizard (careers repeat + addresses, multipart upload); this placeholder
-// carries the required address fields — the wizard lands in a later wave.
-func CompleteProfilePage(appName, csrfToken string) templ.Component {
+// CompleteProfilePage mirrors reference auth/complete-profile.blade.php for the
+// gate fields (gender, blood_group, present/permanent address — everything
+// Profile::isComplete() and CompleteProfileController@store require). The
+// reference blade is a two-step Alpine wizard (careers repeat, photo cropper,
+// local names, date of birth, social links); those land in a later wave.
+// Select options mirror app/Enums/Gender.php and app/Enums/BloodGroup.php.
+func CompleteProfilePage(appName, csrfToken, errMsg string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -57,11 +59,33 @@ func CompleteProfilePage(appName, csrfToken string) templ.Component {
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<p class=\"mb-4 text-sm text-gray-600 dark:text-gray-400\">To finish setting up your account, please provide your address details.</p><form method=\"POST\" action=\"/profile/complete\" class=\"space-y-4\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<p class=\"mb-4 text-sm text-gray-600 dark:text-gray-400\">To finish setting up your account, please complete your profile.</p><form method=\"POST\" action=\"/profile/complete\" class=\"space-y-4\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				templ_7745c5c3_Err = CSRFToken(csrfToken).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = Select("Gender", "gender", []Option{
+					{Value: "male", Label: "Male"},
+					{Value: "female", Label: "Female"},
+					{Value: "other", Label: "Other"},
+					{Value: "prefer_not_to_say", Label: "Prefer not to say"},
+				}, nil).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = Select("Blood group", "blood_group", []Option{
+					{Value: "A+", Label: "A+"},
+					{Value: "A-", Label: "A-"},
+					{Value: "B+", Label: "B+"},
+					{Value: "B-", Label: "B-"},
+					{Value: "AB+", Label: "AB+"},
+					{Value: "AB-", Label: "AB-"},
+					{Value: "O+", Label: "O+"},
+					{Value: "O-", Label: "O-"},
+				}, nil).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -70,6 +94,10 @@ func CompleteProfilePage(appName, csrfToken string) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				templ_7745c5c3_Err = TextInput("Permanent address", "permanent_address", "text", nil).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = ErrText(errMsg).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

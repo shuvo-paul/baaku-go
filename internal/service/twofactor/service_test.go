@@ -1,6 +1,7 @@
 package twofactor_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/base32"
 	"errors"
@@ -339,5 +340,62 @@ func TestDisableClearsAllTwoFactorFields(t *testing.T) {
 	if u.TwoFactorSecret != nil || u.TwoFactorRecoveryCodes != nil || u.TwoFactorConfirmedAt != nil {
 		t.Errorf("Disable left state behind: secret=%v codes=%v confirmed=%v",
 			u.TwoFactorSecret, u.TwoFactorRecoveryCodes, u.TwoFactorConfirmedAt)
+	}
+}
+
+func TestRegenerateRecoveryCodes(t *testing.T) {
+	h := newHarness(t, true)
+	if _, err := h.svc.Enable(context.Background(), 1); err != nil {
+		t.Fatalf("Enable = %v", err)
+	}
+	codes, err := h.svc.RegenerateRecoveryCodes(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("RegenerateRecoveryCodes = %v", err)
+	}
+	if len(codes) != twofactor.CodeCount {
+		t.Errorf("codes = %d, want %d", len(codes), twofactor.CodeCount)
+	}
+	dec, err := twofactor.DecryptCodes(testKey(), *h.store.users[1].TwoFactorRecoveryCodes)
+	if err != nil {
+		t.Fatalf("DecryptCodes: %v", err)
+	}
+	if len(dec) != len(codes) || dec[0] != codes[0] {
+		t.Errorf("stored codes = %v, want %v", dec, codes)
+	}
+}
+
+func TestRegenerateRequiresEnrollment(t *testing.T) {
+	h := newHarness(t, true)
+	if _, err := h.svc.RegenerateRecoveryCodes(context.Background(), 1); !errors.Is(err, twofactor.ErrNotEnabled) {
+		t.Errorf("err = %v, want ErrNotEnabled", err)
+	}
+}
+
+func TestSetupKeyAndQRCodePNG(t *testing.T) {
+	h := newHarness(t, true)
+	res, err := h.svc.Enable(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("Enable = %v", err)
+	}
+	key, err := h.svc.SetupKey(context.Background(), 1)
+	if err != nil || key != res.Secret {
+		t.Errorf("SetupKey = %q, %v; want %q", key, err, res.Secret)
+	}
+	png, err := h.svc.QRCodePNG(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("QRCodePNG = %v", err)
+	}
+	if !bytes.HasPrefix(png, []byte{0x89, 'P', 'N', 'G'}) {
+		t.Errorf("not a PNG: % x", png[:4])
+	}
+}
+
+func TestSetupKeyAndQRRequireEnrollment(t *testing.T) {
+	h := newHarness(t, true)
+	if _, err := h.svc.SetupKey(context.Background(), 1); !errors.Is(err, twofactor.ErrNotEnabled) {
+		t.Errorf("SetupKey err = %v, want ErrNotEnabled", err)
+	}
+	if _, err := h.svc.QRCodePNG(context.Background(), 1); !errors.Is(err, twofactor.ErrNotEnabled) {
+		t.Errorf("QRCodePNG err = %v, want ErrNotEnabled", err)
 	}
 }

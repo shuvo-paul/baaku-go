@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/shuvo-paul/baaku/internal/service/user"
+	qrcode "github.com/skip2/go-qrcode"
 )
 
 // Errors returned by the service flows.
@@ -194,6 +195,62 @@ func (s *Service) HasEnabledTwoFactor(ctx context.Context, userID int64) (bool, 
 // confirm gate belongs to the HTTP handler, not this service.
 func (s *Service) Disable(ctx context.Context, userID int64) error {
 	return s.store.ClearTwoFactor(ctx, userID)
+}
+
+// SetupKey returns the decrypted TOTP secret for the setup-key display
+// (the reference profile page renders decrypt($user->two_factor_secret)
+// inline next to the QR code).
+func (s *Service) SetupKey(ctx context.Context, userID int64) (string, error) {
+	u, err := s.store.GetByID(ctx, userID)
+	if err != nil {
+		return "", err
+	}
+	if u.TwoFactorSecret == nil {
+		return "", ErrNotEnabled
+	}
+	return Decrypt(s.key, *u.TwoFactorSecret)
+}
+
+// QRCodePNG renders the otpauth:// URI as a QR code PNG for the enable-
+// confirmation step (reference twoFactorQrCodeSvg; PNG for <img> embedding).
+func (s *Service) QRCodePNG(ctx context.Context, userID int64) ([]byte, error) {
+	u, err := s.store.GetByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if u.TwoFactorSecret == nil {
+		return nil, ErrNotEnabled
+	}
+	secret, err := Decrypt(s.key, *u.TwoFactorSecret)
+	if err != nil {
+		return nil, err
+	}
+	return qrcode.Encode(ProvisioningURI(s.appName, u.Email, secret), qrcode.Medium, 256)
+}
+
+// RegenerateRecoveryCodes replaces the stored codes and returns the fresh
+// plaintext set (Fortify GenerateNewRecoveryCodes). Requires an enrolled
+// secret.
+func (s *Service) RegenerateRecoveryCodes(ctx context.Context, userID int64) ([]string, error) {
+	u, err := s.store.GetByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if u.TwoFactorSecret == nil {
+		return nil, ErrNotEnabled
+	}
+	codes, err := NewRecoveryCodes()
+	if err != nil {
+		return nil, err
+	}
+	enc, err := EncryptCodes(s.key, codes)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.store.SetTwoFactor(ctx, userID, *u.TwoFactorSecret, enc, u.TwoFactorConfirmedAt); err != nil {
+		return nil, err
+	}
+	return codes, nil
 }
 
 // verifyWithReplay checks the TOTP code and claims it for single use within

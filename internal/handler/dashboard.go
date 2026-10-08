@@ -24,5 +24,5 @@ func (h *Dashboard) Show(w http.ResponseWriter, r *http.Request) {
 		middleware.Redirect(w, r, middleware.LoginPath)
 		return
 	}
-	views.DashboardPage(h.appName, middleware.TokenFromContext(r.Context()), u.Name).Render(r.Context(), w)
+	views.DashboardPage(h.appName, middleware.TokenFromContext(r.Context()), u.Name, middleware.FlashFromContext(r.Context())["status"]).Render(r.Context(), w)
 }

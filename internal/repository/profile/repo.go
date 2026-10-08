@@ -30,3 +30,16 @@ func (r *Repo) Complete(ctx context.Context, userID int64) (bool, error) {
 	}
 	return complete != nil && *complete, nil
 }
+
+// UpsertDetails fills the complete-profile gate fields
+// (reference UpdateProfileDetails + firstOrCreate); see the query comment.
+func (r *Repo) UpsertDetails(ctx context.Context, userID int64, gender, bloodGroup, presentAddress, permanentAddress string) error {
+	_, err := r.q.UpsertProfileDetails(ctx, generated.UpsertProfileDetailsParams{
+		UserID:           userID,
+		Gender:           &gender,
+		BloodGroup:       &bloodGroup,
+		PresentAddress:   &presentAddress,
+		PermanentAddress: &permanentAddress,
+	})
+	return err
+}

@@ -154,3 +154,32 @@ func CompleteProfileCheck(check ProfileCompleteness) func(http.Handler) http.Han
 		})
 	}
 }
+
+// ConfirmPasswordPath is the password-confirmation form (Fortify
+// password.confirm route).
+const ConfirmPasswordPath = "/user/confirm-password"
+
+// PasswordConfirmationCheck reports whether the user confirmed their password
+// recently; *repository/confirm.Repo satisfies it.
+type PasswordConfirmationCheck interface {
+	Confirmed(ctx context.Context, userID int64) bool
+}
+
+// RequirePasswordConfirmation mirrors Fortify's password.confirm middleware
+// (twoFactorAuthentication confirmPassword => true): an unconfirmed request
+// stashes the intended URL and bounces to the confirmation form — any
+// method, like Fortify's handle(). Guests pass through; RequireAuth owns
+// that redirect.
+func RequirePasswordConfirmation(check PasswordConfirmationCheck) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			u, ok := UserFromContext(r.Context())
+			if ok && !check.Confirmed(r.Context(), u.ID) {
+				SetIntended(r.Context(), r.URL.RequestURI())
+				Redirect(w, r, ConfirmPasswordPath)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}

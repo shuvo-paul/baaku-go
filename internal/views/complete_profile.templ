@@ -1,19 +1,38 @@
 package views
 
-// CompleteProfilePage mirrors reference auth/complete-profile.blade.php's form
-// target (profile.complete.store). The reference blade is a two-step Alpine
-// wizard (careers repeat + addresses, multipart upload); this placeholder
-// carries the required address fields — the wizard lands in a later wave.
-templ CompleteProfilePage(appName, csrfToken string) {
+// CompleteProfilePage mirrors reference auth/complete-profile.blade.php for the
+// gate fields (gender, blood_group, present/permanent address — everything
+// Profile::isComplete() and CompleteProfileController@store require). The
+// reference blade is a two-step Alpine wizard (careers repeat, photo cropper,
+// local names, date of birth, social links); those land in a later wave.
+// Select options mirror app/Enums/Gender.php and app/Enums/BloodGroup.php.
+templ CompleteProfilePage(appName, csrfToken, errMsg string) {
 	@Layout(appName) {
 		@Card("Complete profile") {
 			<p class="mb-4 text-sm text-gray-600 dark:text-gray-400">
-				To finish setting up your account, please provide your address details.
+				To finish setting up your account, please complete your profile.
 			</p>
 			<form method="POST" action="/profile/complete" class="space-y-4">
 				@CSRFToken(csrfToken)
+				@Select("Gender", "gender", []Option{
+					{Value: "male", Label: "Male"},
+					{Value: "female", Label: "Female"},
+					{Value: "other", Label: "Other"},
+					{Value: "prefer_not_to_say", Label: "Prefer not to say"},
+				}, nil)
+				@Select("Blood group", "blood_group", []Option{
+					{Value: "A+", Label: "A+"},
+					{Value: "A-", Label: "A-"},
+					{Value: "B+", Label: "B+"},
+					{Value: "B-", Label: "B-"},
+					{Value: "AB+", Label: "AB+"},
+					{Value: "AB-", Label: "AB-"},
+					{Value: "O+", Label: "O+"},
+					{Value: "O-", Label: "O-"},
+				}, nil)
 				@TextInput("Present address", "present_address", "text", templ.Attributes{"autofocus": true})
 				@TextInput("Permanent address", "permanent_address", "text", nil)
+				@ErrText(errMsg)
 				@SubmitButton("Save")
 			</form>
 		}

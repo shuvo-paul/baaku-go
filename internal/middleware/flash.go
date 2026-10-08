@@ -97,6 +97,14 @@ func FlashFromContext(ctx context.Context) map[string]string {
 // (Laravel ->with()). No-op for guests — no session in context, nothing to
 // write into.
 func SetFlash(ctx context.Context, key, value string) {
+	SetFlashMany(ctx, map[string]string{key: value})
+}
+
+// SetFlashMany writes several key→value flashes in one session save (Laravel
+// redirect()->with($k, $v)->with($k2, $v2)). Writes must batch: sessionState
+// carries the payload by value, so separate SetFlash calls in one request
+// would each start from the stale payload and clobber each other.
+func SetFlashMany(ctx context.Context, kv map[string]string) {
 	st, ok := ctx.Value(sessionCtxKey{}).(sessionState)
 	if !ok {
 		return
@@ -105,7 +113,9 @@ func SetFlash(ctx context.Context, key, value string) {
 	if flash == nil {
 		flash = map[string]string{}
 	}
-	flash[key] = value
+	for k, v := range kv {
+		flash[k] = v
+	}
 	st.sess.Payload = setPayloadFlash(st.sess.Payload, flash)
 	_ = st.saver.Save(ctx, upsertSessionParams(st.sess))
 }

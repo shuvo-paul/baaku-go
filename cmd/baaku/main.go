@@ -18,9 +18,11 @@ import (
 	"github.com/shuvo-paul/baaku/internal/middleware"
 	"github.com/shuvo-paul/baaku/internal/repository/confirm"
 	passwordresetrepo "github.com/shuvo-paul/baaku/internal/repository/passwordreset"
+	"github.com/shuvo-paul/baaku/internal/repository/profile"
 	"github.com/shuvo-paul/baaku/internal/repository/session"
 	"github.com/shuvo-paul/baaku/internal/repository/twofactor"
 	"github.com/shuvo-paul/baaku/internal/repository/user"
+	"github.com/shuvo-paul/baaku/internal/service/completeprofile"
 	"github.com/shuvo-paul/baaku/internal/service/emailverify"
 	"github.com/shuvo-paul/baaku/internal/service/login"
 	"github.com/shuvo-paul/baaku/internal/service/passwordchange"
@@ -62,6 +64,7 @@ func main() {
 	twofaRepo := twofactor.NewRepo(users, q)
 	confirmRepo := confirm.NewRepo(q, time.Duration(cfg.Auth.PasswordTimeout)*time.Second)
 	twofa := tfasvc.NewService(twofaRepo, twofaRepo, confirmRepo, key, cfg.App.Name)
+	profRepo := profile.NewRepo(q)
 
 	authSvc := login.New(users, sessStore, users)
 	challengeSvc := twofactorchallenge.New(sessStore, twofa)
@@ -101,10 +104,13 @@ func main() {
 		return passwordchange.ChangePassword(ctx, users, userID, current, newPw, confirm)
 	})
 	proh := handler.NewProfileUpdater(profileinfo.New(users).Update)
-
+	compH := handler.NewCompleteProfile(completeprofile.New(profRepo), profRepo, cfg.App.Name)
+	tfsH := handler.NewTwoFactorSettings(twofa)
+	profpH := handler.NewProfilePage(twofa, cfg.App.Name)
 	r := chi.NewRouter()
 	r.Use(middleware.Session(cfg.Session.Cookie, sessStore))
 	r.Use(middleware.CSRF(key))
+	r.Use(middleware.MethodOverride)
 
 	r.Get("/login", lh.ShowLogin)
 	r.With(middleware.LoginThrottle(5, time.Minute)).Post("/login", lh.Login)
@@ -133,7 +139,30 @@ func main() {
 	r.With(authMW).Put("/user/password", uph.Update)
 	r.With(authMW).Put("/user/profile-information", proh.Update)
 
-	r.With(authMW, middleware.RequireVerified).Get("/dashboard", dashH.Show)
+	// Reference routes/profile.php: profile.complete = auth + verified +
+	// user.suspended (the gate middleware lands with the dashboard wiring).
+	completeMW := r.With(authMW, middleware.RequireVerified, middleware.CheckUserSuspended)
+	completeMW.Get("/profile/complete", compH.Show)
+	completeMW.Post("/profile/complete", compH.Store)
+
+	// Profile page (reference dashboard/profile: auth + verified +
+	// complete-profile.check + user.suspended) — security tab only for now;
+	// details/educations/careers tabs land in later waves.
+	r.With(authMW, middleware.RequireVerified, middleware.CompleteProfileCheck(profRepo), middleware.CheckUserSuspended).Get("/dashboard/profile", profpH.Show)
+
+	// Two-factor management (Fortify twoFactorAuthentication with
+	// confirmPassword => true): every route behind auth + password.confirm.
+	tfmw := r.With(authMW, middleware.RequirePasswordConfirmation(confirmRepo))
+	tfmw.Post("/user/two-factor-authentication", tfsH.Enable)
+	tfmw.Post("/user/confirmed-two-factor-authentication", tfsH.Confirm)
+	tfmw.Delete("/user/two-factor-authentication", tfsH.Disable)
+	tfmw.Get("/user/two-factor-qr-code", tfsH.QRCode)
+	tfmw.Post("/user/two-factor-recovery-codes", tfsH.Regenerate)
+	// Reference routes/dashboard.php protected group: auth + verified +
+	// complete-profile.check. Suspended users keep /dashboard access; their
+	// sub-routes add user.suspended, and posts/users add user.approved —
+	// those routes land in later waves and get the guards there.
+	r.With(authMW, middleware.RequireVerified, middleware.CompleteProfileCheck(profRepo)).Get("/dashboard", dashH.Show)
 
 	static, err := fs.Sub(staticFS, "static")
 	if err != nil {

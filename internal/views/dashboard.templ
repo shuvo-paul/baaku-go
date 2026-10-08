@@ -1,10 +1,13 @@
 package views
 
 // DashboardPage is the minimal post-login landing (reference
-// DashboardController — full dashboard content is a later wave).
-templ DashboardPage(appName, csrfToken, name string) {
+// DashboardController — full dashboard content is a later wave). status is the
+// session('status') flash (e.g. profile_completed), rendered like the
+// reference dashboard blade.
+templ DashboardPage(appName, csrfToken, name, status string) {
 	@Layout(appName) {
 		@Card("Dashboard") {
+			@StatusText(status)
 			<p class="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
 			{ "Welcome, " + name }
 			</p>
