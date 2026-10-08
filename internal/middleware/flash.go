@@ -1,4 +1,5 @@
-// Session-backed flash messages and the shared 302 redirect helper.
+// Session-backed flash messages, the intended-URL slot, and the shared 302
+// redirect helper.
 //
 // Laravel semantics: ->with($key, $value) at redirect time stores the pair in
 // the session payload; the next request reads it once, then it is gone.
@@ -21,6 +22,10 @@ type sessionPayload struct {
 	// the twofactorchallenge service. Listed here so flash writes don't
 	// drop it when re-marshaling the payload.
 	LoginTwoFactor int64 `json:"login.two_factor,omitempty"`
+	// URLIntended is the post-login redirect target (Laravel session
+	// url.intended), written by RequireAuth when bouncing a session-bearing
+	// visitor to login.
+	URLIntended string `json:"url.intended,omitempty"`
 }
 
 func payloadFlash(raw string) map[string]string {
@@ -29,15 +34,49 @@ func payloadFlash(raw string) map[string]string {
 	return p.Flash
 }
 
-func setPayloadFlash(raw string, flash map[string]string) string {
+// mutatePayload applies fn to the decoded session payload and re-marshals it,
+// preserving every other bucket (flash, login.two_factor, url.intended).
+func mutatePayload(raw string, fn func(*sessionPayload)) string {
 	var p sessionPayload
 	_ = json.Unmarshal([]byte(raw), &p)
-	p.Flash = flash
+	fn(&p)
 	out, err := json.Marshal(p)
 	if err != nil {
 		return raw // unreachable: struct is always marshalable
 	}
 	return string(out)
+}
+
+func setPayloadFlash(raw string, flash map[string]string) string {
+	return mutatePayload(raw, func(p *sessionPayload) { p.Flash = flash })
+}
+
+// SetIntended stores url as the post-login redirect target (Laravel
+// redirect()->guest() stashing url.intended). No-op for guests — no session
+// row in context, nothing to write into; they land on the default
+// destination after login.
+// ponytail: guest session rows would make intended work cookie-less;
+// create them when that gap matters.
+func SetIntended(ctx context.Context, url string) {
+	st, ok := ctx.Value(sessionCtxKey{}).(sessionState)
+	if !ok {
+		return
+	}
+	st.sess.Payload = mutatePayload(st.sess.Payload, func(p *sessionPayload) { p.URLIntended = url })
+	_ = st.saver.Save(ctx, upsertSessionParams(st.sess))
+}
+
+// IntendedFromContext returns the URL stored by SetIntended, if any. The value
+// rides in the pre-login session row, which login replaces wholesale, so it
+// needs no explicit clearing.
+func IntendedFromContext(ctx context.Context) (string, bool) {
+	st, ok := ctx.Value(sessionCtxKey{}).(sessionState)
+	if !ok {
+		return "", false
+	}
+	var p sessionPayload
+	_ = json.Unmarshal([]byte(st.sess.Payload), &p)
+	return p.URLIntended, p.URLIntended != ""
 }
 
 type flashCtxKey struct{}

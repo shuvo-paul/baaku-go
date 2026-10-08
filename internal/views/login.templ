@@ -1,12 +1,15 @@
 package views
 
 // LoginPage mirrors reference auth/login.blade.php (Fortify login).
-templ LoginPage(appName, csrfToken string) {
+templ LoginPage(appName, csrfToken, email, errMsg string) {
 	@Layout(appName) {
 		@Card("Sign in") {
 			<form method="POST" action="/login" class="space-y-4">
 				@CSRFToken(csrfToken)
-				@TextInput("Email", "email", "email", templ.Attributes{"autofocus": true})
+				@TextInput("Email", "email", "email", templ.Attributes{"autofocus": true, "value": email})
+				if errMsg != "" {
+					<p class="mt-1.5 text-sm font-medium text-red-600" role="alert">{ errMsg }</p>
+				}
 				@PasswordInput("Password", "password", nil)
 				<div class="flex items-center justify-between">
 					<label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">

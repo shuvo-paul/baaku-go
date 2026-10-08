@@ -55,11 +55,14 @@ func RequireAuth(users UserLoader) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			sess, ok := SessionFromContext(r.Context())
 			if !ok || sess.UserID == nil {
+				// Laravel redirect()->guest() stashes the attempted URL.
+				SetIntended(r.Context(), r.URL.RequestURI())
 				Redirect(w, r, LoginPath)
 				return
 			}
 			u, err := users.GetByID(r.Context(), *sess.UserID)
 			if errors.Is(err, pgx.ErrNoRows) {
+				SetIntended(r.Context(), r.URL.RequestURI())
 				Redirect(w, r, LoginPath)
 				return
 			}

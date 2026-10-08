@@ -12,13 +12,16 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"time"
 
 	"github.com/shuvo-paul/baaku/internal/database/queries/generated"
 	"github.com/shuvo-paul/baaku/internal/repository/session"
+	sessid "github.com/shuvo-paul/baaku/internal/service/session"
 )
 
 // PendingKey is the session payload key holding the user id awaiting the 2FA
-// challenge. Handlers that create the pending session must use PendingPayload.
+// challenge. Begin creates the pending session; handlers must not build the
+// payload themselves.
 const PendingKey = "login.two_factor"
 
 // ErrNoPendingChallenge is returned when the session isn't a pending-2FA
@@ -29,6 +32,8 @@ var ErrNoPendingChallenge = errors.New("twofactorchallenge: no pending two-facto
 type SessionStore interface {
 	Load(ctx context.Context, id string) (generated.Session, error)
 	Promote(ctx context.Context, id string, userID int64, payload string) error
+	// Create inserts a new session row (Begin's pending-login sessions).
+	Create(ctx context.Context, p generated.UpsertSessionParams) error
 }
 
 // Verifier checks the challenge code. *twofactor.Service satisfies it (valid
@@ -51,6 +56,26 @@ func New(sessions SessionStore, verify Verifier) *Service {
 func PendingPayload(userID int64) string {
 	b, _ := json.Marshal(map[string]int64{PendingKey: userID}) //nolint:errcheck // map is always marshalable
 	return string(b)
+}
+
+// Begin opens the pending-2FA session for userID and returns its ID
+// (Fortify's login response stashing login.id before the challenge). The row
+// has user_id NULL — every auth guard treats it as a guest until Challenge
+// promotes it. The login handler calls this on login.Login's TwoFactorPending.
+func (s *Service) Begin(ctx context.Context, userID int64) (string, error) {
+	id, err := sessid.NewSessionID()
+	if err != nil {
+		return "", err
+	}
+	err = s.sessions.Create(ctx, generated.UpsertSessionParams{
+		ID:           id,
+		Payload:      PendingPayload(userID),
+		LastActivity: int32(time.Now().Unix()),
+	})
+	if err != nil {
+		return "", err
+	}
+	return id, nil
 }
 
 // Challenge verifies code against the pending session's user and, on success,
