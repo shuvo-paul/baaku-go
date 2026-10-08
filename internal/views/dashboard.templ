@@ -1,0 +1,17 @@
+package views
+
+// DashboardPage is the minimal post-login landing (reference
+// DashboardController — full dashboard content is a later wave).
+templ DashboardPage(appName, csrfToken, name string) {
+	@Layout(appName) {
+		@Card("Dashboard") {
+			<p class="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
+			{ "Welcome, " + name }
+			</p>
+			<form method="POST" action="/logout" class="mt-6">
+				@CSRFToken(csrfToken)
+				@OutlineSubmitButton("Log out")
+			</form>
+		}
+	}
+}

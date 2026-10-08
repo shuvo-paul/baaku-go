@@ -9,8 +9,9 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 // ForgotPasswordPage mirrors reference auth/forgot-password.blade.php
-// (Fortify password.request / password.email).
-func ForgotPasswordPage(appName, csrfToken string) templ.Component {
+// (Fortify password.request / password.email). status is the session('status')
+// flash from a successful link request (passwords.sent).
+func ForgotPasswordPage(appName, csrfToken, status, errMsg string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -55,7 +56,19 @@ func ForgotPasswordPage(appName, csrfToken string) templ.Component {
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<p class=\"mt-2 text-center text-sm text-gray-600 dark:text-gray-400\">Forgot your password? No problem. Just let us know your email address and we will email you a password reset link.</p> <form method=\"POST\" action=\"/forgot-password\" class=\"mt-6 space-y-4\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<p class=\"mt-2 text-center text-sm text-gray-600 dark:text-gray-400\">Forgot your password? No problem. Just let us know your email address and we will email you a password reset link.</p>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = StatusText(status).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = ErrText(errMsg).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<form method=\"POST\" action=\"/forgot-password\" class=\"mt-6 space-y-4\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -71,7 +84,7 @@ func ForgotPasswordPage(appName, csrfToken string) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</form><div class=\"mt-4 text-center\"><a href=\"/login\" class=\"text-sm text-indigo-600 hover:text-indigo-500\">Back to login</a></div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</form><div class=\"mt-4 text-center\"><a href=\"/login\" class=\"text-sm text-indigo-600 hover:text-indigo-500\">Back to login</a></div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

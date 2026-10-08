@@ -10,7 +10,8 @@ import templruntime "github.com/a-h/templ/runtime"
 
 // TwoFactorChallengePage mirrors reference auth/two-factor-challenge.blade.php
 // (Fortify two-factor.login): TOTP code form + recovery-code form.
-func TwoFactorChallengePage(appName, csrfToken string) templ.Component {
+// errMsg is the FailedTwoFactorLoginResponse message.
+func TwoFactorChallengePage(appName, csrfToken, errMsg string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -64,6 +65,10 @@ func TwoFactorChallengePage(appName, csrfToken string) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				templ_7745c5c3_Err = TextInput("Code", "code", "text", templ.Attributes{"inputmode": "numeric", "autocomplete": "one-time-code", "autofocus": true}).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = ErrText(errMsg).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

@@ -10,9 +10,9 @@ import templruntime "github.com/a-h/templ/runtime"
 
 // RegisterPage mirrors reference auth/register.blade.php. The reference blade
 // is a two-step Alpine wizard (education repeat + account details); this
-// placeholder carries the Fortify POST /register account fields — the
-// education wizard lands with its Alpine wiring in a later wave.
-func RegisterPage(appName, csrfToken string) templ.Component {
+// placeholder carries one static education row plus the Fortify POST /register
+// account fields — the repeat-row Alpine wiring lands in a later wave.
+func RegisterPage(appName, csrfToken, errMsg string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -85,11 +85,59 @@ func RegisterPage(appName, csrfToken string) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<fieldset class=\"space-y-4 rounded-md border border-gray-200 p-4 dark:border-gray-700\"><legend class=\"px-1 text-sm font-semibold text-gray-700 dark:text-gray-300\">Education</legend>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = TextInput("Level", "educations[0][level]", "text", nil).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = TextInput("Institution", "educations[0][institution]", "text", nil).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = OptionalInput("Student ID", "educations[0][student_id]", "text", nil).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = TextInput("Subject", "educations[0][subject]", "text", nil).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = TextInput("Start year", "educations[0][start_year]", "number", templ.Attributes{"min": "1000", "max": "9999"}).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = OptionalInput("Start month", "educations[0][start_month]", "number", templ.Attributes{"min": "1", "max": "12"}).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<label class=\"flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300\"><input type=\"checkbox\" name=\"educations[0][is_current]\" value=\"1\" class=\"rounded border-gray-300 text-indigo-600 focus:ring-indigo-500\"> Currently enrolled</label>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = OptionalInput("End year", "educations[0][end_year]", "number", templ.Attributes{"min": "1000", "max": "9999"}).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = OptionalInput("End month", "educations[0][end_month]", "number", templ.Attributes{"min": "1", "max": "12"}).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</fieldset>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = ErrText(errMsg).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
 				templ_7745c5c3_Err = SubmitButton("Register").Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</form><div class=\"mt-4 text-center text-sm text-gray-600 dark:text-gray-400\">Already registered? <a href=\"/login\" class=\"text-indigo-600 hover:text-indigo-500\">Sign in</a></div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</form><div class=\"mt-4 text-center text-sm text-gray-600 dark:text-gray-400\">Already registered? <a href=\"/login\" class=\"text-indigo-600 hover:text-indigo-500\">Sign in</a></div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

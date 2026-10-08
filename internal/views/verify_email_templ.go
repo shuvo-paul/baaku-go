@@ -9,8 +9,9 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 // VerifyEmailPage mirrors reference auth/verify-email.blade.php (Fortify
-// verification.send + logout).
-func VerifyEmailPage(appName, csrfToken string) templ.Component {
+// verification.notice / verification.send). status carries the
+// 'verification-link-sent' session flash after a resend.
+func VerifyEmailPage(appName, csrfToken, status string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -55,7 +56,15 @@ func VerifyEmailPage(appName, csrfToken string) templ.Component {
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<p class=\"mt-2 text-center text-sm text-gray-600 dark:text-gray-400\">Thanks for signing up! Before getting started, could you verify your email address by clicking on the link we just emailed to you?</p> <div class=\"mt-6 space-y-4\"><form method=\"POST\" action=\"/email/verification-notification\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<p class=\"mt-2 text-center text-sm text-gray-600 dark:text-gray-400\">Thanks for signing up! Before getting started, could you verify your email address by clicking on the link we just emailed to you?</p>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = StatusText(status).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<div class=\"mt-6 space-y-4\"><form method=\"POST\" action=\"/email/verification-notification\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -67,7 +76,7 @@ func VerifyEmailPage(appName, csrfToken string) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</form><form method=\"POST\" action=\"/logout\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</form><form method=\"POST\" action=\"/logout\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -75,7 +84,7 @@ func VerifyEmailPage(appName, csrfToken string) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</form></div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</form></div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

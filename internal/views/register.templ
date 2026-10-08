@@ -2,9 +2,9 @@ package views
 
 // RegisterPage mirrors reference auth/register.blade.php. The reference blade
 // is a two-step Alpine wizard (education repeat + account details); this
-// placeholder carries the Fortify POST /register account fields — the
-// education wizard lands with its Alpine wiring in a later wave.
-templ RegisterPage(appName, csrfToken string) {
+// placeholder carries one static education row plus the Fortify POST /register
+// account fields — the repeat-row Alpine wiring lands in a later wave.
+templ RegisterPage(appName, csrfToken, errMsg string) {
 	@Layout(appName) {
 		@Card("Register") {
 			<form method="POST" action="/register" class="space-y-4">
@@ -14,6 +14,22 @@ templ RegisterPage(appName, csrfToken string) {
 				@TextInput("Phone", "phone", "tel", nil)
 				@PasswordInput("Password", "password", nil)
 				@PasswordInput("Confirm password", "password_confirmation", nil)
+				<fieldset class="space-y-4 rounded-md border border-gray-200 p-4 dark:border-gray-700">
+					<legend class="px-1 text-sm font-semibold text-gray-700 dark:text-gray-300">Education</legend>
+					@TextInput("Level", "educations[0][level]", "text", nil)
+					@TextInput("Institution", "educations[0][institution]", "text", nil)
+					@OptionalInput("Student ID", "educations[0][student_id]", "text", nil)
+					@TextInput("Subject", "educations[0][subject]", "text", nil)
+					@TextInput("Start year", "educations[0][start_year]", "number", templ.Attributes{"min": "1000", "max": "9999"})
+					@OptionalInput("Start month", "educations[0][start_month]", "number", templ.Attributes{"min": "1", "max": "12"})
+					<label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+						<input type="checkbox" name="educations[0][is_current]" value="1" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"/>
+						Currently enrolled
+					</label>
+					@OptionalInput("End year", "educations[0][end_year]", "number", templ.Attributes{"min": "1000", "max": "9999"})
+					@OptionalInput("End month", "educations[0][end_month]", "number", templ.Attributes{"min": "1", "max": "12"})
+				</fieldset>
+				@ErrText(errMsg)
 				@SubmitButton("Register")
 			</form>
 			<div class="mt-4 text-center text-sm text-gray-600 dark:text-gray-400">

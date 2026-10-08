@@ -2,7 +2,8 @@ package views
 
 // TwoFactorChallengePage mirrors reference auth/two-factor-challenge.blade.php
 // (Fortify two-factor.login): TOTP code form + recovery-code form.
-templ TwoFactorChallengePage(appName, csrfToken string) {
+// errMsg is the FailedTwoFactorLoginResponse message.
+templ TwoFactorChallengePage(appName, csrfToken, errMsg string) {
 	@Layout(appName) {
 		@Card("Two-factor authentication") {
 			<p class="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
@@ -11,6 +12,7 @@ templ TwoFactorChallengePage(appName, csrfToken string) {
 			<form method="POST" action="/two-factor-challenge" class="mt-6 space-y-4">
 				@CSRFToken(csrfToken)
 				@TextInput("Code", "code", "text", templ.Attributes{"inputmode": "numeric", "autocomplete": "one-time-code", "autofocus": true})
+				@ErrText(errMsg)
 				@SubmitButton("Sign in")
 			</form>
 			<div class="mt-6 border-t border-gray-200 pt-4 dark:border-gray-700">

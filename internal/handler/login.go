@@ -20,7 +20,9 @@ import (
 const AuthFailedMessage = "These credentials do not match our records."
 
 // ChallengePath is Fortify's two-factor challenge route.
-const ChallengePath = "/user/two-factor-challenge"
+// ChallengePath is Fortify's two-factor challenge route (v1.39 routes.php:
+// RoutePath::for('two-factor.login', '/two-factor-challenge')).
+const ChallengePath = "/two-factor-challenge"
 
 // LoginService is the login/logout port; *login.Service satisfies it.
 type LoginService interface {
@@ -105,13 +107,18 @@ func (h *Login) Login(w http.ResponseWriter, r *http.Request) {
 }
 
 // postLoginDest is the intended URL RequireAuth stashed, else the dashboard.
-// Only same-site paths count — never redirect off-host.
 func (h *Login) postLoginDest(r *http.Request) string {
+	return intendedDest(r, middleware.DashboardPath)
+}
+
+// intendedDest returns the intended URL RequireAuth stashed, else fallback.
+// Only same-site paths count — never redirect off-host.
+func intendedDest(r *http.Request, fallback string) string {
 	dest, ok := middleware.IntendedFromContext(r.Context())
 	if ok && strings.HasPrefix(dest, "/") && !strings.HasPrefix(dest, "//") {
 		return dest
 	}
-	return middleware.DashboardPath
+	return fallback
 }
 
 func (h *Login) renderForm(w http.ResponseWriter, r *http.Request, email, errMsg string) {
