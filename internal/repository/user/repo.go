@@ -41,7 +41,7 @@ func (r *Repo) GetByEmail(ctx context.Context, email string) (user.User, error) 
 	return fromGenerated(u), nil
 }
 
-// UserByEmail adapts GetByEmail to the login service's UserByEmail port:
+// UserByEmail adapts GetByEmail to the login service's UserStore port:
 // pgx.ErrNoRows becomes login.ErrUserNotFound so the service takes its
 // constant-time failure path instead of leaking account existence.
 func (r *Repo) UserByEmail(ctx context.Context, email string) (login.User, error) {
@@ -52,7 +52,11 @@ func (r *Repo) UserByEmail(ctx context.Context, email string) (login.User, error
 	if err != nil {
 		return login.User{}, err
 	}
-	return login.User{ID: u.ID, PasswordHash: u.PasswordHash}, nil
+	var remember string
+	if u.RememberToken != nil {
+		remember = *u.RememberToken
+	}
+	return login.User{ID: u.ID, PasswordHash: u.PasswordHash, RememberToken: remember}, nil
 }
 
 // TwoFactorConfirmed reports whether the user's 2FA enrolment is confirmed
@@ -86,6 +90,12 @@ func (r *Repo) UpdateState(ctx context.Context, id int64, state user.UserState) 
 // SetPassword also clears remember_token, matching the reference query.
 func (r *Repo) SetPassword(ctx context.Context, id int64, passwordHash string) error {
 	return r.q.UpdateUserPassword(ctx, generated.UpdateUserPasswordParams{ID: id, Password: passwordHash})
+}
+
+// SetRememberToken persists the remember-me token (nil clears it — logout
+// and password change kill every outstanding recaller cookie that way).
+func (r *Repo) SetRememberToken(ctx context.Context, id int64, token *string) error {
+	return r.q.UpdateUserRememberToken(ctx, generated.UpdateUserRememberTokenParams{ID: id, Token: token})
 }
 
 func (r *Repo) SetEmailVerified(ctx context.Context, id int64) error {

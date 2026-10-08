@@ -22,19 +22,21 @@ const (
 
 // Challenge verifies the pending-2FA login (twofactorchallenge.Service).
 type Challenge interface {
-	Challenge(ctx context.Context, sessionID, code string) error
+	Challenge(ctx context.Context, sessionID, code string) (twofactorchallenge.ChallengeResult, error)
 }
 
 // TwoFactorChallenge renders and processes the login 2FA challenge
-// (Fortify TwoFactorAuthenticatedSessionController).
+// (Fortify TwoFactorAuthenticatedSessionController). key is the decoded
+// APP_KEY bytes the recaller cookie's password-hash MAC is keyed with.
 type TwoFactorChallenge struct {
 	svc     Challenge
 	sessCfg config.Session
 	appName string
+	key     []byte
 }
 
-func NewTwoFactorChallenge(svc Challenge, sessCfg config.Session, appName string) *TwoFactorChallenge {
-	return &TwoFactorChallenge{svc: svc, sessCfg: sessCfg, appName: appName}
+func NewTwoFactorChallenge(svc Challenge, sessCfg config.Session, appName string, key []byte) *TwoFactorChallenge {
+	return &TwoFactorChallenge{svc: svc, sessCfg: sessCfg, appName: appName, key: key}
 }
 
 // Show renders GET /two-factor-challenge. No pending challenge → login
@@ -72,7 +74,7 @@ func (h *TwoFactorChallenge) Submit(w http.ResponseWriter, r *http.Request) {
 		code = recovery
 	}
 
-	err := h.svc.Challenge(r.Context(), sess.ID, code)
+	res, err := h.svc.Challenge(r.Context(), sess.ID, code)
 	switch {
 	case errors.Is(err, twofactorchallenge.ErrNoPendingChallenge):
 		middleware.Redirect(w, r, middleware.LoginPath)
@@ -86,6 +88,9 @@ func (h *TwoFactorChallenge) Submit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 	default:
 		http.SetCookie(w, session.Cookie(h.sessCfg, sess.ID))
+		if res.RememberToken != "" {
+			http.SetCookie(w, session.RememberCookie(h.sessCfg, h.key, res.UserID, res.RememberToken, res.PasswordHash))
+		}
 		middleware.Redirect(w, r, intendedDest(r, middleware.DashboardPath))
 	}
 }

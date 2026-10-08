@@ -92,9 +92,8 @@ func newFixture() (*passwordreset.Service, *fakeUsers, *fakeTokens, *clock) {
 }
 
 func TestIssue(t *testing.T) {
-	svc, _, tokens, _ := newFixture()
+	svc, _, tokens, c := newFixture()
 	ctx := context.Background()
-
 	raw, err := svc.Issue(ctx, email)
 	if err != nil {
 		t.Fatalf("Issue: %v", err)
@@ -113,7 +112,9 @@ func TestIssue(t *testing.T) {
 		t.Errorf("created_at = %v, want fixture clock", row.CreatedAt)
 	}
 
-	// Upsert per email: a second Issue replaces the first.
+	// Upsert per email: a second Issue replaces the first — after the
+	// per-email throttle window has passed.
+	c.t = baseTime.Add(passwordreset.ThrottleWindow + time.Second)
 	raw2, err := svc.Issue(ctx, email)
 	if err != nil {
 		t.Fatalf("second Issue: %v", err)
@@ -130,6 +131,34 @@ func TestIssueUnknownUser(t *testing.T) {
 	svc, _, _, _ := newFixture()
 	if _, err := svc.Issue(context.Background(), "ghost@example.com"); !errors.Is(err, passwordreset.ErrUserNotFound) {
 		t.Errorf("got %v, want ErrUserNotFound", err)
+	}
+}
+
+func TestIssueThrottled(t *testing.T) {
+	svc, _, tokens, c := newFixture()
+	ctx := context.Background()
+
+	raw, err := svc.Issue(ctx, email)
+	if err != nil {
+		t.Fatalf("first Issue: %v", err)
+	}
+
+	_, err = svc.Issue(ctx, email)
+	var throttled passwordreset.ThrottledError
+	if !errors.As(err, &throttled) {
+		t.Fatalf("immediate reissue err = %v, want ThrottledError", err)
+	}
+	if throttled.RetryAfter <= 0 || throttled.RetryAfter > passwordreset.ThrottleWindow {
+		t.Errorf("RetryAfter = %v, want within (0, %v]", throttled.RetryAfter, passwordreset.ThrottleWindow)
+	}
+	if got := tokens.rows[email].Token; got != raw {
+		t.Errorf("stored token = %q, want untouched %q", got, raw)
+	}
+
+	// Past the window a reissue goes through.
+	c.t = baseTime.Add(passwordreset.ThrottleWindow + time.Second)
+	if _, err := svc.Issue(ctx, email); err != nil {
+		t.Errorf("Issue after window: %v", err)
 	}
 }
 

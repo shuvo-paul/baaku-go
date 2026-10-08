@@ -60,15 +60,27 @@ func main() {
 	q := generated.New(pool)
 
 	users := user.NewRepo(q, pool)
-	sessStore := session.NewStore(q)
+	sessStore := session.NewStore(q, time.Duration(cfg.Session.Lifetime)*time.Minute)
+	// Session GC: Laravel sweeps expired rows via the per-request session
+	// lottery; a background hourly sweep keeps the table bounded here.
+	go func() {
+		ticker := time.NewTicker(time.Hour)
+		defer ticker.Stop()
+		for {
+			if err := sessStore.GC(ctx, time.Now()); err != nil {
+				l.Warn().Err(err).Msg("baaku: session GC")
+			}
+			<-ticker.C
+		}
+	}()
 	twofaRepo := twofactor.NewRepo(users, q)
 	confirmRepo := confirm.NewRepo(q, time.Duration(cfg.Auth.PasswordTimeout)*time.Second)
 	twofa := tfasvc.NewService(twofaRepo, twofaRepo, confirmRepo, key, cfg.App.Name)
 	profRepo := profile.NewRepo(q)
 
 	authSvc := login.New(users, sessStore, users)
-	challengeSvc := twofactorchallenge.New(sessStore, twofa)
-	lh := handler.NewLogin(authSvc, challengeSvc, cfg.Session, cfg.App.Name)
+	challengeSvc := twofactorchallenge.New(sessStore, twofa, users)
+	lh := handler.NewLogin(authSvc, challengeSvc, cfg.Session, cfg.App.Name, key)
 
 	// Mailer-backed send func for verification + reset emails.
 	sendMail := func(to, subject, body string) error {
@@ -98,7 +110,7 @@ func main() {
 	prh := handler.NewPasswordReset(resetSvc, sendResetLink, cfg.App.Name)
 	evh := handler.NewEmailVerify(users, resender, rawKey, cfg.App.Name)
 	cph := handler.NewConfirmPassword(passwordconfirm.New(users, confirmRepo), cfg.App.Name)
-	tfch := handler.NewTwoFactorChallenge(challengeSvc, cfg.Session, cfg.App.Name)
+	tfch := handler.NewTwoFactorChallenge(challengeSvc, cfg.Session, cfg.App.Name, key)
 	dashH := handler.NewDashboard(cfg.App.Name)
 	uph := handler.NewUpdatePassword(func(ctx context.Context, userID int64, current, newPw, confirm string) error {
 		return passwordchange.ChangePassword(ctx, users, userID, current, newPw, confirm)
@@ -109,6 +121,7 @@ func main() {
 	profpH := handler.NewProfilePage(twofa, cfg.App.Name)
 	r := chi.NewRouter()
 	r.Use(middleware.Session(cfg.Session.Cookie, sessStore))
+	r.Use(middleware.Remember(cfg.Session, key, users, sessStore))
 	r.Use(middleware.CSRF(key))
 	r.Use(middleware.MethodOverride)
 
@@ -129,8 +142,10 @@ func main() {
 
 	authMW := middleware.RequireAuth(users)
 	r.With(authMW).Get("/email/verify", evh.Notice)
-	r.With(authMW).Get("/email/verify/{id}/{hash}", evh.Verify)
-	r.With(authMW).Post("/email/verification-notification", evh.Resend)
+	// Fortify ships throttle:6,1 on both verification routes.
+	verifyMW := r.With(authMW, middleware.Throttle(6, time.Minute))
+	verifyMW.Get("/email/verify/{id}/{hash}", evh.Verify)
+	verifyMW.Post("/email/verification-notification", evh.Resend)
 
 	r.With(authMW).Get("/user/confirm-password", cph.Show)
 	r.With(authMW).Post("/user/confirm-password", cph.Confirm)

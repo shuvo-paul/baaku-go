@@ -25,28 +25,32 @@ const AuthFailedMessage = "These credentials do not match our records."
 const ChallengePath = "/two-factor-challenge"
 
 // LoginService is the login/logout port; *login.Service satisfies it.
+// LoginService is the login/logout port; *login.Service satisfies it.
 type LoginService interface {
-	Login(ctx context.Context, email, password string) (login.LoginResult, error)
-	Logout(ctx context.Context, sessionID string) error
+	Login(ctx context.Context, email, password string, remember bool) (login.LoginResult, error)
+	Logout(ctx context.Context, sessionID string, userID *int64) error
 }
 
 // PendingSessions opens the pending-2FA session; *twofactorchallenge.Service
 // satisfies it (Begin keeps the "login.two_factor" payload shape in-package).
 type PendingSessions interface {
-	Begin(ctx context.Context, userID int64) (string, error)
+	Begin(ctx context.Context, userID int64, remember bool) (string, error)
 }
 
 // Login renders and processes the login form and logout (Fortify
-// AuthenticatedSessionController).
+// Login renders and processes the login form and logout (Fortify
+// AuthenticatedSessionController). key is the decoded APP_KEY bytes the
+// recaller cookie's password-hash MAC is keyed with.
 type Login struct {
 	auth    LoginService
 	pending PendingSessions
 	sessCfg config.Session
 	appName string
+	key     []byte
 }
 
-func NewLogin(auth LoginService, pending PendingSessions, sessCfg config.Session, appName string) *Login {
-	return &Login{auth: auth, pending: pending, sessCfg: sessCfg, appName: appName}
+func NewLogin(auth LoginService, pending PendingSessions, sessCfg config.Session, appName string, key []byte) *Login {
+	return &Login{auth: auth, pending: pending, sessCfg: sessCfg, appName: appName, key: key}
 }
 
 // ShowLogin renders GET /login; authenticated visitors bounce to the
@@ -67,7 +71,7 @@ func (h *Login) Login(w http.ResponseWriter, r *http.Request) {
 	}
 	email := strings.TrimSpace(r.FormValue("email"))
 	password := r.FormValue("password")
-
+	remember := r.FormValue("remember") == "1" // checkbox on the login form
 	switch {
 	case email == "":
 		h.renderForm(w, r, email, "The email field is required.")
@@ -77,7 +81,7 @@ func (h *Login) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res, err := h.auth.Login(r.Context(), email, password)
+	res, err := h.auth.Login(r.Context(), email, password, remember)
 	switch {
 	case errors.Is(err, login.ErrInvalidCredentials):
 		// Re-render keeps the entered email (Laravel old('email')).
@@ -91,8 +95,10 @@ func (h *Login) Login(w http.ResponseWriter, r *http.Request) {
 	if res.TwoFactorPending {
 		// Pending session: user_id NULL + "login.two_factor" payload. The
 		// cookie carries the pending session ID so H6's challenge can find
-		// the row; RequireAuth still treats the visitor as a guest.
-		sid, err := h.pending.Begin(r.Context(), res.UserID)
+		// the row; RequireAuth still treats the visitor as a guest. The
+		// remember flag rides along and only becomes a recaller cookie once
+		// the challenge succeeds.
+		sid, err := h.pending.Begin(r.Context(), res.UserID, remember)
 		if err != nil {
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
@@ -103,6 +109,9 @@ func (h *Login) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.SetCookie(w, session.Cookie(h.sessCfg, res.SessionID))
+	if res.RememberToken != "" {
+		http.SetCookie(w, session.RememberCookie(h.sessCfg, h.key, res.UserID, res.RememberToken, res.PasswordHash))
+	}
 	middleware.Redirect(w, r, h.postLoginDest(r))
 }
 
@@ -125,13 +134,19 @@ func (h *Login) renderForm(w http.ResponseWriter, r *http.Request, email, errMsg
 	views.LoginPage(h.appName, middleware.TokenFromContext(r.Context()), email, errMsg).Render(r.Context(), w)
 }
 
-// Logout handles POST /logout: destroy the session if any, always clear the
-// cookie, back to login (Fortify logout has no auth gate).
+// Logout handles POST /logout: destroy the session if any, clear the
+// remember token + recaller cookie, always clear the session cookie, back to
+// login (Fortify logout has no auth gate; clearing the remember token kills
+// every outstanding recaller cookie, like SessionGuard::logout cycling it).
 func (h *Login) Logout(w http.ResponseWriter, r *http.Request) {
-	if sess, ok := middleware.SessionFromContext(r.Context()); ok && sess.ID != "" {
-		if err := h.auth.Logout(r.Context(), sess.ID); err != nil {
-			http.Error(w, "internal server error", http.StatusInternalServerError)
-			return
+	var userID *int64
+	if sess, ok := middleware.SessionFromContext(r.Context()); ok {
+		userID = sess.UserID
+		if sess.ID != "" {
+			if err := h.auth.Logout(r.Context(), sess.ID, userID); err != nil {
+				http.Error(w, "internal server error", http.StatusInternalServerError)
+				return
+			}
 		}
 	}
 	c := session.Cookie(h.sessCfg, "")
@@ -139,5 +154,6 @@ func (h *Login) Logout(w http.ResponseWriter, r *http.Request) {
 	c.MaxAge = -1
 	c.Expires = time.Unix(0, 0)
 	http.SetCookie(w, c)
+	http.SetCookie(w, session.ForgetRememberCookie(h.sessCfg))
 	middleware.Redirect(w, r, middleware.LoginPath)
 }

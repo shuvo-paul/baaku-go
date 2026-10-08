@@ -1,5 +1,8 @@
 -- name: GetSessionByID :one
-SELECT * FROM public.sessions WHERE id = sqlc.arg(id);
+-- cutoff: last_activity older than SESSION_LIFETIME means the session is
+-- expired server-side (Laravel Store::isValid), regardless of the cookie.
+SELECT * FROM public.sessions
+WHERE id = sqlc.arg(id) AND last_activity >= sqlc.arg(cutoff);
 
 -- name: UpsertSession :exec
 INSERT INTO public.sessions (id, user_id, ip_address, user_agent, payload, last_activity)

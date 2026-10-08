@@ -14,14 +14,20 @@ import (
 var errStore = errors.New("store down")
 
 type fakeUsers struct {
-	user       login.User
-	err        error
-	askedEmail string
+	user        login.User
+	err         error
+	askedEmail  string
+	rememberSet []*string
 }
 
 func (f *fakeUsers) UserByEmail(_ context.Context, email string) (login.User, error) {
 	f.askedEmail = email
 	return f.user, f.err
+}
+
+func (f *fakeUsers) SetRememberToken(_ context.Context, id int64, token *string) error {
+	f.rememberSet = append(f.rememberSet, token)
+	return nil
 }
 
 type fakeSessions struct {
@@ -139,7 +145,7 @@ func TestLogin(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			svc := login.New(c.users, c.sessions, c.twofa)
-			got, err := svc.Login(context.Background(), "a@b.c", c.password)
+			got, err := svc.Login(context.Background(), "a@b.c", c.password, false)
 
 			if c.wantErr != nil {
 				if !errors.Is(err, c.wantErr) {
@@ -168,7 +174,7 @@ func TestLogout(t *testing.T) {
 	sessions := &fakeSessions{}
 	svc := login.New(&fakeUsers{}, sessions, &fakeTwoFactor{})
 
-	if err := svc.Logout(context.Background(), "sess-9"); err != nil {
+	if err := svc.Logout(context.Background(), "sess-9", nil); err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
 	if !slices.Equal(sessions.deleted, []string{"sess-9"}) {
@@ -177,7 +183,91 @@ func TestLogout(t *testing.T) {
 
 	sessions = &fakeSessions{deleteErr: errStore}
 	svc = login.New(&fakeUsers{}, sessions, &fakeTwoFactor{})
-	if err := svc.Logout(context.Background(), "sess-9"); !errors.Is(err, errStore) {
+	if err := svc.Logout(context.Background(), "sess-9", nil); !errors.Is(err, errStore) {
 		t.Errorf("err = %v, want wrapped %v", err, errStore)
 	}
+}
+
+func TestLogoutClearsRememberToken(t *testing.T) {
+	users := &fakeUsers{}
+	svc := login.New(users, &fakeSessions{}, &fakeTwoFactor{})
+	uid := int64(42)
+
+	if err := svc.Logout(context.Background(), "sess-9", &uid); err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if len(users.rememberSet) != 1 || users.rememberSet[0] != nil {
+		t.Errorf("remember token writes = %v, want one nil clear", users.rememberSet)
+	}
+}
+
+func TestLoginRemember(t *testing.T) {
+	hash, err := bcrypt.GenerateFromPassword([]byte("hunter2!"), bcrypt.DefaultCost)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("remember cycles a missing token and returns it", func(t *testing.T) {
+		users := &fakeUsers{user: login.User{ID: 42, PasswordHash: string(hash)}}
+		svc := login.New(users, &fakeSessions{createID: "s1"}, &fakeTwoFactor{})
+
+		res, err := svc.Login(context.Background(), "a@b.c", "hunter2!", true)
+		if err != nil {
+			t.Fatalf("unexpected err: %v", err)
+		}
+		if len(res.RememberToken) != 60 {
+			t.Errorf("RememberToken len = %d, want 60", len(res.RememberToken))
+		}
+		if res.PasswordHash != string(hash) {
+			t.Errorf("PasswordHash = %q, want the user's hash", res.PasswordHash)
+		}
+		if len(users.rememberSet) != 1 || users.rememberSet[0] == nil || *users.rememberSet[0] != res.RememberToken {
+			t.Errorf("persisted token = %v, want the returned one", users.rememberSet)
+		}
+	})
+
+	t.Run("remember reuses an existing token", func(t *testing.T) {
+		users := &fakeUsers{user: login.User{ID: 42, PasswordHash: string(hash), RememberToken: "existing-token"}}
+		svc := login.New(users, &fakeSessions{createID: "s1"}, &fakeTwoFactor{})
+
+		res, err := svc.Login(context.Background(), "a@b.c", "hunter2!", true)
+		if err != nil {
+			t.Fatalf("unexpected err: %v", err)
+		}
+		if res.RememberToken != "existing-token" {
+			t.Errorf("RememberToken = %q, want existing-token", res.RememberToken)
+		}
+		if len(users.rememberSet) != 0 {
+			t.Errorf("token rewritten despite existing one: %v", users.rememberSet)
+		}
+	})
+
+	t.Run("no remember leaves the result bare", func(t *testing.T) {
+		users := &fakeUsers{user: login.User{ID: 42, PasswordHash: string(hash)}}
+		svc := login.New(users, &fakeSessions{createID: "s1"}, &fakeTwoFactor{})
+
+		res, err := svc.Login(context.Background(), "a@b.c", "hunter2!", false)
+		if err != nil {
+			t.Fatalf("unexpected err: %v", err)
+		}
+		if res.RememberToken != "" || res.PasswordHash != "" {
+			t.Errorf("result = %+v, want no remember fields", res)
+		}
+		if len(users.rememberSet) != 0 {
+			t.Errorf("token written without remember: %v", users.rememberSet)
+		}
+	})
+
+	t.Run("2FA pending stashes no recaller", func(t *testing.T) {
+		users := &fakeUsers{user: login.User{ID: 42, PasswordHash: string(hash)}}
+		svc := login.New(users, &fakeSessions{createID: "s1"}, &fakeTwoFactor{confirmed: true})
+
+		res, err := svc.Login(context.Background(), "a@b.c", "hunter2!", true)
+		if err != nil {
+			t.Fatalf("unexpected err: %v", err)
+		}
+		if !res.TwoFactorPending || res.RememberToken != "" {
+			t.Errorf("result = %+v, want pending without recaller", res)
+		}
+	})
 }

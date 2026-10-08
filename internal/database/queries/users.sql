@@ -51,3 +51,10 @@ SET name = sqlc.arg(name),
     email_verified_at = sqlc.arg(email_verified_at),
     updated_at = now()::timestamp(0)
 WHERE id = sqlc.arg(id);
+
+-- name: UpdateUserRememberToken :exec
+-- Remember-me token (Laravel SessionGuard::cycleRememberToken / logout
+-- clears it so every outstanding recaller cookie dies).
+UPDATE public.users
+SET remember_token = sqlc.arg(token), updated_at = now()::timestamp(0)
+WHERE id = sqlc.arg(id);

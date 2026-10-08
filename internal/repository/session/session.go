@@ -16,12 +16,18 @@ import (
 // ErrNotFound is returned by Load when no session exists for the ID.
 var ErrNotFound = errors.New("session not found")
 
-// Store persists sessions via sqlc queries.
+// Store persists sessions via sqlc queries. lifetime is the server-side
+// session validity window (SESSION_LIFETIME): Load rejects rows whose
+// last_activity is older than it, matching Laravel's Store::isValid —
+// a leaked session ID dies with the window regardless of the cookie.
 type Store struct {
-	q *generated.Queries
+	q        *generated.Queries
+	lifetime time.Duration
 }
 
-func NewStore(q *generated.Queries) *Store { return &Store{q: q} }
+func NewStore(q *generated.Queries, lifetime time.Duration) *Store {
+	return &Store{q: q, lifetime: lifetime}
+}
 
 // Create inserts a new session row. Session IDs are 32 random bytes, so a
 // collision is practically impossible; this upserts like Save rather than
@@ -30,9 +36,11 @@ func (s *Store) Create(ctx context.Context, p generated.UpsertSessionParams) err
 	return s.q.UpsertSession(ctx, p)
 }
 
-// Load returns the session row for id, or ErrNotFound.
+// Load returns the session row for id, or ErrNotFound — also for rows whose
+// last_activity fell outside the lifetime window (expired server-side).
 func (s *Store) Load(ctx context.Context, id string) (generated.Session, error) {
-	sess, err := s.q.GetSessionByID(ctx, id)
+	cutoff := int32(expiryCutoff(time.Now(), s.lifetime))
+	sess, err := s.q.GetSessionByID(ctx, generated.GetSessionByIDParams{ID: id, Cutoff: cutoff})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return generated.Session{}, ErrNotFound
 	}
@@ -73,9 +81,10 @@ func (s *Store) DeleteSession(ctx context.Context, sessionID string) error {
 	return s.Destroy(ctx, sessionID)
 }
 
-// GC deletes sessions whose last_activity is older than lifetime before now.
-func (s *Store) GC(ctx context.Context, now time.Time, lifetime time.Duration) error {
-	return s.q.DeleteExpiredSessions(ctx, int32(expiryCutoff(now, lifetime)))
+// GC deletes sessions whose last_activity is older than the store's lifetime.
+// main.go sweeps it periodically (Laravel uses the per-request session lottery).
+func (s *Store) GC(ctx context.Context, now time.Time) error {
+	return s.q.DeleteExpiredSessions(ctx, int32(expiryCutoff(now, s.lifetime)))
 }
 
 // Promote attaches an authenticated user to a pending session row and

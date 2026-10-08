@@ -37,11 +37,19 @@ func (q *Queries) DeleteSessionsByUserID(ctx context.Context, userID *int64) err
 }
 
 const getSessionByID = `-- name: GetSessionByID :one
-SELECT id, user_id, ip_address, user_agent, payload, last_activity FROM public.sessions WHERE id = $1
+SELECT id, user_id, ip_address, user_agent, payload, last_activity FROM public.sessions
+WHERE id = $1 AND last_activity >= $2
 `
 
-func (q *Queries) GetSessionByID(ctx context.Context, id string) (Session, error) {
-	row := q.db.QueryRow(ctx, getSessionByID, id)
+type GetSessionByIDParams struct {
+	ID     string
+	Cutoff int32
+}
+
+// cutoff: last_activity older than SESSION_LIFETIME means the session is
+// expired server-side (Laravel Store::isValid), regardless of the cookie.
+func (q *Queries) GetSessionByID(ctx context.Context, arg GetSessionByIDParams) (Session, error) {
+	row := q.db.QueryRow(ctx, getSessionByID, arg.ID, arg.Cutoff)
 	var i Session
 	err := row.Scan(
 		&i.ID,

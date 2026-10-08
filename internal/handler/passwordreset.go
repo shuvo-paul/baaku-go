@@ -3,8 +3,10 @@ package handler
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -25,6 +27,11 @@ const (
 	// PasswordsUser is passwords.user.
 	PasswordsUser = "We can't find a user with that email address."
 )
+
+// passwordsThrottled renders passwords.throttled with the remaining wait.
+func passwordsThrottled(retryAfter time.Duration) string {
+	return fmt.Sprintf("Please wait %d seconds before trying again.", int(retryAfter.Seconds())+1)
+}
 
 // PasswordResetService is the reset-broker port; *passwordreset.Service.
 type PasswordResetService interface {
@@ -73,9 +80,14 @@ func (h *PasswordReset) Forgot(w http.ResponseWriter, r *http.Request) {
 	}
 
 	token, err := h.svc.Issue(r.Context(), email)
+	var throttled passwordreset.ThrottledError
 	switch {
 	case errors.Is(err, passwordreset.ErrUserNotFound):
 		h.renderForgot(w, r, "", PasswordsUser)
+		return
+	case errors.As(err, &throttled):
+		// Broker keeps the existing token; show the remaining wait.
+		h.renderForgot(w, r, "", passwordsThrottled(throttled.RetryAfter))
 		return
 	case err != nil:
 		http.Error(w, "internal server error", http.StatusInternalServerError)

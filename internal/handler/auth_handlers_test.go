@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/shuvo-paul/baaku/internal/service/passwordreset"
 	"github.com/shuvo-paul/baaku/internal/service/register"
 	"github.com/shuvo-paul/baaku/internal/service/twofactor"
+	"github.com/shuvo-paul/baaku/internal/service/twofactorchallenge"
 	"github.com/shuvo-paul/baaku/internal/service/user"
 )
 
@@ -146,16 +148,17 @@ type fakeChallenge struct {
 	sessionID string
 	code      string
 	err       error
+	res       twofactorchallenge.ChallengeResult
 }
 
-func (f *fakeChallenge) Challenge(_ context.Context, sessionID, code string) error {
+func (f *fakeChallenge) Challenge(_ context.Context, sessionID, code string) (twofactorchallenge.ChallengeResult, error) {
 	f.sessionID, f.code = sessionID, code
-	return f.err
+	return f.res, f.err
 }
 
 func challengeRouter(t *testing.T, svc *fakeChallenge, store *fakeSessions) http.Handler {
 	t.Helper()
-	h := handler.NewTwoFactorChallenge(svc, testSessCfg, "Baaku")
+	h := handler.NewTwoFactorChallenge(svc, testSessCfg, "Baaku", csrfKey)
 	r := chi.NewRouter()
 	r.Use(middleware.Session(testCookie, store))
 	r.Use(middleware.CSRF(csrfKey))
@@ -277,6 +280,20 @@ func TestForgotPasswordUnknownEmailShowsUserMessage(t *testing.T) {
 	}
 	if len(sent) != 0 {
 		t.Errorf("email sent for unknown user: %v", sent)
+	}
+}
+
+func TestForgotPasswordThrottledShowsWaitMessage(t *testing.T) {
+	svc := &fakeResetSvc{issueErr: passwordreset.ThrottledError{RetryAfter: 42 * time.Second}}
+	var sent []string
+	router := resetRouter(t, svc, &fakeSessions{}, &sent)
+
+	rec := postForm(t, router, "/forgot-password", url.Values{"email": {"ada@example.com"}}, "")
+	if !strings.Contains(rec.Body.String(), "Please wait 43 seconds before trying again.") {
+		t.Errorf("missing passwords.throttled message: %s", rec.Body.String())
+	}
+	if len(sent) != 0 {
+		t.Errorf("email sent while throttled: %v", sent)
 	}
 }
 

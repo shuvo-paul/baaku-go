@@ -189,6 +189,24 @@ func (q *Queries) UpdateUserProfile(ctx context.Context, arg UpdateUserProfilePa
 	return err
 }
 
+const updateUserRememberToken = `-- name: UpdateUserRememberToken :exec
+UPDATE public.users
+SET remember_token = $1, updated_at = now()::timestamp(0)
+WHERE id = $2
+`
+
+type UpdateUserRememberTokenParams struct {
+	Token *string
+	ID    int64
+}
+
+// Remember-me token (Laravel SessionGuard::cycleRememberToken / logout
+// clears it so every outstanding recaller cookie dies).
+func (q *Queries) UpdateUserRememberToken(ctx context.Context, arg UpdateUserRememberTokenParams) error {
+	_, err := q.db.Exec(ctx, updateUserRememberToken, arg.Token, arg.ID)
+	return err
+}
+
 const updateUserState = `-- name: UpdateUserState :exec
 UPDATE public.users
 SET state = $1, updated_at = now()::timestamp(0)

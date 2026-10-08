@@ -17,6 +17,7 @@ import (
 	"github.com/shuvo-paul/baaku/internal/middleware"
 	"github.com/shuvo-paul/baaku/internal/repository/session"
 	"github.com/shuvo-paul/baaku/internal/service/login"
+	sesssvc "github.com/shuvo-paul/baaku/internal/service/session"
 	"github.com/shuvo-paul/baaku/internal/service/twofactor"
 )
 
@@ -37,27 +38,32 @@ type fakeLogin struct {
 	err           error
 	loginEmail    string
 	loginPassword string
+	loginRemember bool
 	logoutCalls   []string
+	logoutUserID  *int64
 }
 
-func (f *fakeLogin) Login(_ context.Context, email, password string) (login.LoginResult, error) {
-	f.loginEmail, f.loginPassword = email, password
+func (f *fakeLogin) Login(_ context.Context, email, password string, remember bool) (login.LoginResult, error) {
+	f.loginEmail, f.loginPassword, f.loginRemember = email, password, remember
 	return f.res, f.err
 }
 
-func (f *fakeLogin) Logout(_ context.Context, sessionID string) error {
+func (f *fakeLogin) Logout(_ context.Context, sessionID string, userID *int64) error {
 	f.logoutCalls = append(f.logoutCalls, sessionID)
+	f.logoutUserID = userID
 	return nil
 }
 
 type fakePending struct {
-	id    string
-	err   error
-	asked []int64
+	id            string
+	err           error
+	asked         []int64
+	askedRemember []bool
 }
 
-func (f *fakePending) Begin(_ context.Context, userID int64) (string, error) {
+func (f *fakePending) Begin(_ context.Context, userID int64, remember bool) (string, error) {
 	f.asked = append(f.asked, userID)
+	f.askedRemember = append(f.askedRemember, remember)
 	return f.id, f.err
 }
 
@@ -143,7 +149,7 @@ func sessionCookie(t *testing.T, rec *httptest.ResponseRecorder) *http.Cookie {
 // tests
 
 func TestLoginShowRendersFormWithToken(t *testing.T) {
-	router := newRouter(handler.NewLogin(&fakeLogin{}, &fakePending{}, testCfg, "Baaku"), &fakeSessions{})
+	router := newRouter(handler.NewLogin(&fakeLogin{}, &fakePending{}, testCfg, "Baaku", csrfKey), &fakeSessions{})
 
 	rec := get(t, router, "/login", "")
 	if rec.Code != http.StatusOK {
@@ -175,7 +181,7 @@ func TestLoginShowAuthenticatedRedirectsToDashboard(t *testing.T) {
 	store := &fakeSessions{byID: map[string]generated.Session{
 		"s1": {ID: "s1", UserID: &uid},
 	}}
-	router := newRouter(handler.NewLogin(&fakeLogin{}, &fakePending{}, testCfg, "Baaku"), store)
+	router := newRouter(handler.NewLogin(&fakeLogin{}, &fakePending{}, testCfg, "Baaku", csrfKey), store)
 
 	rec := get(t, router, "/login", "s1")
 	if rec.Code != http.StatusFound {
@@ -188,7 +194,7 @@ func TestLoginShowAuthenticatedRedirectsToDashboard(t *testing.T) {
 
 func TestLoginSuccessSetsSessionCookie(t *testing.T) {
 	auth := &fakeLogin{res: login.LoginResult{UserID: 42, SessionID: "sid-1"}}
-	router := newRouter(handler.NewLogin(auth, &fakePending{}, testCfg, "Baaku"), &fakeSessions{})
+	router := newRouter(handler.NewLogin(auth, &fakePending{}, testCfg, "Baaku", csrfKey), &fakeSessions{})
 
 	rec := postForm(t, router, "/login", url.Values{"email": {"a@b.c"}, "password": {"hunter2!"}}, "")
 	if rec.Code != http.StatusFound {
@@ -202,6 +208,55 @@ func TestLoginSuccessSetsSessionCookie(t *testing.T) {
 	}
 	if c := sessionCookie(t, rec); c == nil || c.Value != "sid-1" {
 		t.Errorf("session cookie = %+v, want value sid-1", c)
+	}
+}
+
+func TestLoginRememberQueuesRecallerCookie(t *testing.T) {
+	auth := &fakeLogin{res: login.LoginResult{UserID: 42, SessionID: "sid-1", RememberToken: "tok60", PasswordHash: "hash"}}
+	router := newRouter(handler.NewLogin(auth, &fakePending{}, testCfg, "Baaku", csrfKey), &fakeSessions{})
+
+	rec := postForm(t, router, "/login", url.Values{"email": {"a@b.c"}, "password": {"hunter2!"}, "remember": {"1"}}, "")
+	if !auth.loginRemember {
+		t.Error("remember checkbox not forwarded to the service")
+	}
+	want := sesssvc.RecallerValue(csrfKey, 42, "tok60", "hash")
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == sesssvc.RecallerName() {
+			if c.Value != want {
+				t.Errorf("recaller value = %q, want %q", c.Value, want)
+			}
+			return
+		}
+	}
+	t.Error("no recaller cookie queued on remembered login")
+}
+
+func TestLoginWithoutRememberQueuesNoRecaller(t *testing.T) {
+	auth := &fakeLogin{res: login.LoginResult{UserID: 42, SessionID: "sid-1"}}
+	router := newRouter(handler.NewLogin(auth, &fakePending{}, testCfg, "Baaku", csrfKey), &fakeSessions{})
+
+	rec := postForm(t, router, "/login", url.Values{"email": {"a@b.c"}, "password": {"hunter2!"}}, "")
+	if auth.loginRemember {
+		t.Error("remember requested without the checkbox")
+	}
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == sesssvc.RecallerName() {
+			t.Errorf("recaller cookie queued on plain login: %+v", c)
+		}
+	}
+}
+
+func TestLogin2FAStashesRememberFlag(t *testing.T) {
+	auth := &fakeLogin{res: login.LoginResult{UserID: 7, TwoFactorPending: true}}
+	pending := &fakePending{id: "pend-1"}
+	router := newRouter(handler.NewLogin(auth, pending, testCfg, "Baaku", csrfKey), &fakeSessions{})
+
+	rec := postForm(t, router, "/login", url.Values{"email": {"a@b.c"}, "password": {"x"}, "remember": {"1"}}, "")
+	if rec.Code != http.StatusFound || rec.Header().Get("Location") != handler.ChallengePath {
+		t.Fatalf("got %d -> %q, want challenge redirect", rec.Code, rec.Header().Get("Location"))
+	}
+	if len(pending.askedRemember) != 1 || !pending.askedRemember[0] {
+		t.Errorf("Begin remember flags = %v, want [true]", pending.askedRemember)
 	}
 }
 
@@ -221,7 +276,7 @@ func TestLoginIntendedRedirect(t *testing.T) {
 				"s1": {ID: "s1", Payload: tt.payload},
 			}}
 			auth := &fakeLogin{res: login.LoginResult{UserID: 42, SessionID: "sid-1"}}
-			router := newRouter(handler.NewLogin(auth, &fakePending{}, testCfg, "Baaku"), store)
+			router := newRouter(handler.NewLogin(auth, &fakePending{}, testCfg, "Baaku", csrfKey), store)
 
 			rec := postForm(t, router, "/login", url.Values{"email": {"a@b.c"}, "password": {"x"}}, "s1")
 			if rec.Code != http.StatusFound {
@@ -236,7 +291,7 @@ func TestLoginIntendedRedirect(t *testing.T) {
 
 func TestLoginInvalidCredentialsRendersMessage(t *testing.T) {
 	auth := &fakeLogin{err: login.ErrInvalidCredentials}
-	router := newRouter(handler.NewLogin(auth, &fakePending{}, testCfg, "Baaku"), &fakeSessions{})
+	router := newRouter(handler.NewLogin(auth, &fakePending{}, testCfg, "Baaku", csrfKey), &fakeSessions{})
 
 	rec := postForm(t, router, "/login", url.Values{"email": {"a@b.c"}, "password": {"wrong"}}, "")
 	if rec.Code != http.StatusOK {
@@ -256,7 +311,7 @@ func TestLoginInvalidCredentialsRendersMessage(t *testing.T) {
 
 func TestLoginValidationMessages(t *testing.T) {
 	auth := &fakeLogin{res: login.LoginResult{UserID: 1, SessionID: "s"}}
-	router := newRouter(handler.NewLogin(auth, &fakePending{}, testCfg, "Baaku"), &fakeSessions{})
+	router := newRouter(handler.NewLogin(auth, &fakePending{}, testCfg, "Baaku", csrfKey), &fakeSessions{})
 
 	rec := postForm(t, router, "/login", url.Values{"password": {"x"}}, "")
 	if !strings.Contains(rec.Body.String(), "The email field is required.") {
@@ -274,7 +329,7 @@ func TestLoginValidationMessages(t *testing.T) {
 func TestLoginTwoFactorPendingIssuesPendingSession(t *testing.T) {
 	auth := &fakeLogin{res: login.LoginResult{UserID: 7, TwoFactorPending: true}}
 	pending := &fakePending{id: "pend-1"}
-	router := newRouter(handler.NewLogin(auth, pending, testCfg, "Baaku"), &fakeSessions{})
+	router := newRouter(handler.NewLogin(auth, pending, testCfg, "Baaku", csrfKey), &fakeSessions{})
 
 	rec := postForm(t, router, "/login", url.Values{"email": {"a@b.c"}, "password": {"x"}}, "")
 	if rec.Code != http.StatusFound {
@@ -294,7 +349,7 @@ func TestLoginTwoFactorPendingIssuesPendingSession(t *testing.T) {
 }
 
 func TestLoginServiceErrorIs500(t *testing.T) {
-	router := newRouter(handler.NewLogin(&fakeLogin{err: errBoom}, &fakePending{}, testCfg, "Baaku"), &fakeSessions{})
+	router := newRouter(handler.NewLogin(&fakeLogin{err: errBoom}, &fakePending{}, testCfg, "Baaku", csrfKey), &fakeSessions{})
 
 	rec := postForm(t, router, "/login", url.Values{"email": {"a@b.c"}, "password": {"x"}}, "")
 	if rec.Code != http.StatusInternalServerError {
@@ -305,7 +360,7 @@ func TestLoginServiceErrorIs500(t *testing.T) {
 func TestLogoutDestroysSessionAndClearsCookie(t *testing.T) {
 	store := &fakeSessions{byID: map[string]generated.Session{"sid-9": {ID: "sid-9"}}}
 	auth := &fakeLogin{}
-	router := newRouter(handler.NewLogin(auth, &fakePending{}, testCfg, "Baaku"), store)
+	router := newRouter(handler.NewLogin(auth, &fakePending{}, testCfg, "Baaku", csrfKey), store)
 
 	rec := postForm(t, router, "/logout", nil, "sid-9")
 	if rec.Code != http.StatusFound {
@@ -328,7 +383,7 @@ func TestLogoutDestroysSessionAndClearsCookie(t *testing.T) {
 
 func TestLogoutWithoutSessionStillRedirects(t *testing.T) {
 	auth := &fakeLogin{}
-	router := newRouter(handler.NewLogin(auth, &fakePending{}, testCfg, "Baaku"), &fakeSessions{})
+	router := newRouter(handler.NewLogin(auth, &fakePending{}, testCfg, "Baaku", csrfKey), &fakeSessions{})
 
 	rec := postForm(t, router, "/logout", nil, "")
 	if rec.Code != http.StatusFound {

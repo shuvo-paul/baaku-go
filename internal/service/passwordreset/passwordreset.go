@@ -26,6 +26,10 @@ const TokenBytes = 64
 // ValidityWindow mirrors config auth.passwords.users.expire = 60 minutes.
 const ValidityWindow = 60 * time.Minute
 
+// ThrottleWindow mirrors config auth.passwords.users.throttle = 60 seconds
+// between reset-link requests per email (Laravel PASSWORD_THROTTLED).
+const ThrottleWindow = 60 * time.Second
+
 var (
 	// ErrUserNotFound is returned when no user has the given email.
 	ErrUserNotFound = errors.New("auth/passwordreset: no user with that email")
@@ -33,6 +37,13 @@ var (
 	// outside the validity window.
 	ErrInvalidToken = errors.New("auth/passwordreset: invalid or expired token")
 )
+
+// ThrottledError is returned when a reset link is requested again within
+// ThrottleWindow of the last one; RetryAfter is the remaining wait. The
+// previously created token stays valid (Laravel's broker keeps it too).
+type ThrottledError struct{ RetryAfter time.Duration }
+
+func (e ThrottledError) Error() string { return "auth/passwordreset: reset link throttled" }
 
 // userStore is the slice of user.Repo the broker needs.
 type userStore interface {
@@ -65,10 +76,19 @@ func NewWithClock(users userStore, tokens tokenStore, now func() time.Time) *Ser
 }
 
 // Issue generates a fresh reset token for email, replacing any previous one.
-// The raw token is returned for delivery and stored as issued.
+// The raw token is returned for delivery and stored as issued. Requesting
+// again within ThrottleWindow of the previous token returns ThrottledError
+// without touching the stored token (Broker::sendResetLink throttling).
 func (s *Service) Issue(ctx context.Context, email string) (string, error) {
 	if _, err := s.users.GetByEmail(ctx, email); err != nil {
 		return "", mapNotFound(err)
+	}
+	if record, err := s.tokens.GetByEmail(ctx, email); err == nil {
+		if wait := ThrottleWindow - s.now().Sub(derefTime(record.CreatedAt)); wait > 0 {
+			return "", ThrottledError{RetryAfter: wait}
+		}
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return "", err
 	}
 	raw := make([]byte, TokenBytes)
 	if _, err := rand.Read(raw); err != nil {
@@ -76,6 +96,13 @@ func (s *Service) Issue(ctx context.Context, email string) (string, error) {
 	}
 	token := hex.EncodeToString(raw)
 	return token, s.tokens.Upsert(ctx, email, token)
+}
+
+func derefTime(p *time.Time) time.Time {
+	if p == nil {
+		return time.Time{}
+	}
+	return *p
 }
 
 // Lookup reports whether rawToken is the current valid reset token for email.

@@ -14,6 +14,8 @@ import (
 	"fmt"
 
 	"golang.org/x/crypto/bcrypt"
+
+	sesssvc "github.com/shuvo-paul/baaku/internal/service/session"
 )
 
 // ErrInvalidCredentials is returned for both unknown emails and wrong
@@ -29,11 +31,15 @@ var ErrUserNotFound = errors.New("auth: user not found")
 type User struct {
 	ID           int64
 	PasswordHash string
+	// RememberToken is the current remember-me token ("" when none).
+	RememberToken string
 }
 
-// UserByEmail looks up a user by email. Returns ErrUserNotFound when absent.
-type UserByEmail interface {
+// UserStore looks up users by email (ErrUserNotFound when absent) and
+// persists remember-me tokens.
+type UserStore interface {
 	UserByEmail(ctx context.Context, email string) (User, error)
+	SetRememberToken(ctx context.Context, id int64, token *string) error
 }
 
 // SessionStore creates and destroys session rows (public.sessions).
@@ -58,18 +64,23 @@ type LoginResult struct {
 	// TwoFactorPending means credentials were valid but no session was
 	// created: the user must pass the 2FA challenge (Task 08) first.
 	TwoFactorPending bool
+	// RememberToken + PasswordHash are set only when the caller asked to be
+	// remembered and the session opened outright — the handler builds the
+	// recaller cookie from them.
+	RememberToken string
+	PasswordHash  string
 }
 
 // Service orchestrates login/logout. The ports are declared here
 // (consumer-side interfaces) so this package has no dependency on the
 // repository or challenge implementations from other tasks.
 type Service struct {
-	users    UserByEmail
+	users    UserStore
 	sessions SessionStore
 	twofa    TwoFactorCheck
 }
 
-func New(users UserByEmail, sessions SessionStore, twofa TwoFactorCheck) *Service {
+func New(users UserStore, sessions SessionStore, twofa TwoFactorCheck) *Service {
 	return &Service{users: users, sessions: sessions, twofa: twofa}
 }
 
@@ -79,8 +90,10 @@ func New(users UserByEmail, sessions SessionStore, twofa TwoFactorCheck) *Servic
 var dummyHash = []byte("$2a$12$RJhIKhiLp8/zkdfh65b0l.MniCWNeYy2pFgxDQ5JmZrMMWScNh92O")
 
 // Login verifies email+password and opens a session, or reports that a
-// two-factor challenge is pending instead.
-func (s *Service) Login(ctx context.Context, email, password string) (LoginResult, error) {
+// two-factor challenge is pending instead. remember requests the long-lived
+// recaller cookie (Laravel SessionGuard::login($user, $remember)); the token
+// is ensured here and returned on the result so the handler can queue it.
+func (s *Service) Login(ctx context.Context, email, password string, remember bool) (LoginResult, error) {
 	user, err := s.users.UserByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, ErrUserNotFound) {
@@ -100,20 +113,39 @@ func (s *Service) Login(ctx context.Context, email, password string) (LoginResul
 		return LoginResult{}, fmt.Errorf("auth: two-factor check: %w", err)
 	}
 	if pending {
+		// The recaller cookie is queued only after the challenge succeeds
+		// (Fortify stashes login.remember in the pending session).
 		return LoginResult{UserID: user.ID, TwoFactorPending: true}, nil
+	}
+
+	res := LoginResult{UserID: user.ID}
+	if remember {
+		token, err := sesssvc.EnsureRememberToken(ctx, s.users, user.ID, user.RememberToken)
+		if err != nil {
+			return LoginResult{}, fmt.Errorf("auth: remember token: %w", err)
+		}
+		res.RememberToken, res.PasswordHash = token, user.PasswordHash
 	}
 
 	sid, err := s.sessions.CreateSession(ctx, user.ID)
 	if err != nil {
 		return LoginResult{}, fmt.Errorf("auth: create session: %w", err)
 	}
-	return LoginResult{UserID: user.ID, SessionID: sid}, nil
+	res.SessionID = sid
+	return res, nil
 }
 
-// Logout destroys the session identified by sessionID.
-func (s *Service) Logout(ctx context.Context, sessionID string) error {
+// Logout destroys the session identified by sessionID and — like Laravel's
+// SessionGuard::logout, which cycles the remember token — clears the user's
+// remember token when known, killing every outstanding recaller cookie.
+func (s *Service) Logout(ctx context.Context, sessionID string, userID *int64) error {
 	if err := s.sessions.DeleteSession(ctx, sessionID); err != nil {
 		return fmt.Errorf("auth: destroy session: %w", err)
+	}
+	if userID != nil {
+		if err := s.users.SetRememberToken(ctx, *userID, nil); err != nil {
+			return fmt.Errorf("auth: clear remember token: %w", err)
+		}
 	}
 	return nil
 }

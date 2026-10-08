@@ -32,7 +32,7 @@ func openTestStore(t *testing.T) *sessrepo.Store {
 	if err := pool.QueryRow(ctx, "SELECT to_regclass('public.sessions')").Scan(&reg); err != nil || reg == nil {
 		t.Skipf("sessions table not migrated: %v", err)
 	}
-	return sessrepo.NewStore(generated.New(pool))
+	return sessrepo.NewStore(generated.New(pool), 120*time.Minute)
 }
 
 func TestStoreRoundTrip(t *testing.T) {
@@ -99,6 +99,31 @@ func TestStoreLoadMissing(t *testing.T) {
 	}
 }
 
+// Expired rows are rejected on Load alone — server-side expiry does not wait
+// for GC (Laravel Store::isValid).
+func TestStoreLoadRejectsExpired(t *testing.T) {
+	st := openTestStore(t)
+	ctx := context.Background()
+
+	id, err := session.NewSessionID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = st.Create(ctx, generated.UpsertSessionParams{
+		ID:           id,
+		Payload:      "old",
+		LastActivity: int32(time.Now().Add(-3 * time.Hour).Unix()), // beyond 120min
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { st.Destroy(context.Background(), id) })
+
+	if _, err := st.Load(ctx, id); !errors.Is(err, sessrepo.ErrNotFound) {
+		t.Errorf("expired session err = %v, want ErrNotFound", err)
+	}
+}
+
 func TestStoreGC(t *testing.T) {
 	st := openTestStore(t)
 	ctx := context.Background()
@@ -129,7 +154,7 @@ func TestStoreGC(t *testing.T) {
 		}
 	}
 
-	if err := st.GC(ctx, now, 120*time.Minute); err != nil {
+	if err := st.GC(ctx, now); err != nil {
 		t.Fatal(err)
 	}
 

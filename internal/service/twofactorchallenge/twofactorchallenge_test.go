@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -60,14 +61,14 @@ func (v *fakeVerifier) Verify(_ context.Context, _ int64, code string) error {
 // harness
 
 func pendingSession(id string, userID int64) generated.Session {
-	return generated.Session{ID: id, Payload: twofactorchallenge.PendingPayload(userID)}
+	return generated.Session{ID: id, Payload: twofactorchallenge.PendingPayload(userID, false)}
 }
 
 func newFixture(verifier twofactorchallenge.Verifier) (*twofactorchallenge.Service, *fakeSessions) {
 	sessions := &fakeSessions{byID: map[string]generated.Session{
 		"s1": pendingSession("s1", 7),
 	}}
-	return twofactorchallenge.New(sessions, verifier), sessions
+	return twofactorchallenge.New(sessions, verifier, &memUserStore{}), sessions
 }
 
 // tests
@@ -76,7 +77,7 @@ func TestChallengeValidCodePromotesSession(t *testing.T) {
 	verifier := &fakeVerifier{}
 	svc, sessions := newFixture(verifier)
 
-	if err := svc.Challenge(context.Background(), "s1", "123456"); err != nil {
+	if _, err := svc.Challenge(context.Background(), "s1", "123456"); err != nil {
 		t.Fatalf("Challenge = %v, want nil", err)
 	}
 	if len(verifier.codes) != 1 || verifier.codes[0] != "123456" {
@@ -96,7 +97,7 @@ func TestChallengeInvalidCodeLeavesSessionUnchanged(t *testing.T) {
 	svc, sessions := newFixture(verifier)
 	before := sessions.byID["s1"]
 
-	if err := svc.Challenge(context.Background(), "s1", "000000"); !errors.Is(err, twofactor.ErrInvalidCode) {
+	if _, err := svc.Challenge(context.Background(), "s1", "000000"); !errors.Is(err, twofactor.ErrInvalidCode) {
 		t.Errorf("Challenge = %v, want ErrInvalidCode", err)
 	}
 	if sessions.promotes != 0 {
@@ -114,18 +115,18 @@ func TestChallengeNoPendingSession(t *testing.T) {
 	ctx := context.Background()
 
 	// Missing row.
-	if err := svc.Challenge(ctx, "missing", "123456"); !errors.Is(err, twofactorchallenge.ErrNoPendingChallenge) {
+	if _, err := svc.Challenge(ctx, "missing", "123456"); !errors.Is(err, twofactorchallenge.ErrNoPendingChallenge) {
 		t.Errorf("Challenge(missing) = %v, want ErrNoPendingChallenge", err)
 	}
 	// Already authenticated.
 	uid := int64(7)
 	sessions.byID["auth"] = generated.Session{ID: "auth", UserID: &uid, Payload: "{}"}
-	if err := svc.Challenge(ctx, "auth", "123456"); !errors.Is(err, twofactorchallenge.ErrNoPendingChallenge) {
+	if _, err := svc.Challenge(ctx, "auth", "123456"); !errors.Is(err, twofactorchallenge.ErrNoPendingChallenge) {
 		t.Errorf("Challenge(authenticated) = %v, want ErrNoPendingChallenge", err)
 	}
 	// No pending flag in payload.
 	sessions.byID["plain"] = generated.Session{ID: "plain", Payload: `{"flash":{"status":"x"}}`}
-	if err := svc.Challenge(ctx, "plain", "123456"); !errors.Is(err, twofactorchallenge.ErrNoPendingChallenge) {
+	if _, err := svc.Challenge(ctx, "plain", "123456"); !errors.Is(err, twofactorchallenge.ErrNoPendingChallenge) {
 		t.Errorf("Challenge(no flag) = %v, want ErrNoPendingChallenge", err)
 	}
 	if len(verifier.codes) != 0 {
@@ -141,7 +142,7 @@ func TestChallengePreservesOtherPayloadKeys(t *testing.T) {
 		Payload: `{"flash":{"status":"code required"},"login.two_factor":7}`,
 	}
 
-	if err := svc.Challenge(context.Background(), "s2", "123456"); err != nil {
+	if _, err := svc.Challenge(context.Background(), "s2", "123456"); err != nil {
 		t.Fatalf("Challenge = %v, want nil", err)
 	}
 	var payload map[string]any
@@ -157,14 +158,57 @@ func TestChallengePreservesOtherPayloadKeys(t *testing.T) {
 }
 
 func TestPendingPayloadRoundTrip(t *testing.T) {
-	if got := twofactorchallenge.PendingPayload(42); got != `{"login.two_factor":42}` {
-		t.Errorf("PendingPayload(42) = %s", got)
+	if got := twofactorchallenge.PendingPayload(42, false); got != `{"login.two_factor":42}` {
+		t.Errorf("PendingPayload(42, false) = %s", got)
+	}
+}
+
+func TestChallengeRememberFlagIssuesRecaller(t *testing.T) {
+	users := &memUserStore{users: map[int64]user.User{7: {ID: 7, PasswordHash: "bcrypt-hash"}}}
+	sessions := &fakeSessions{byID: map[string]generated.Session{
+		"rem": {ID: "rem", Payload: twofactorchallenge.PendingPayload(7, true)},
+	}}
+	svc := twofactorchallenge.New(sessions, &fakeVerifier{}, users)
+
+	res, err := svc.Challenge(context.Background(), "rem", "123456")
+	if err != nil {
+		t.Fatalf("Challenge = %v, want nil", err)
+	}
+	if res.UserID != 7 || res.PasswordHash != "bcrypt-hash" {
+		t.Errorf("result = %+v, want user 7 with its hash", res)
+	}
+	if len(res.RememberToken) != 60 {
+		t.Errorf("RememberToken len = %d, want 60", len(res.RememberToken))
+	}
+	got := users.users[7].RememberToken
+	if got == nil || *got != res.RememberToken {
+		t.Errorf("persisted token = %v, want the returned one", got)
+	}
+	// Promotion must strip the remember flag with the pending one.
+	if strings.Contains(sessions.byID["rem"].Payload, twofactorchallenge.RememberKey) {
+		t.Errorf("remember flag survived promotion: %s", sessions.byID["rem"].Payload)
+	}
+}
+
+func TestChallengeWithoutRememberFlagIssuesNoRecaller(t *testing.T) {
+	users := &memUserStore{users: map[int64]user.User{7: {ID: 7, PasswordHash: "bcrypt-hash"}}}
+	sessions := &fakeSessions{byID: map[string]generated.Session{
+		"plain": pendingSession("plain", 7),
+	}}
+	svc := twofactorchallenge.New(sessions, &fakeVerifier{}, users)
+
+	res, err := svc.Challenge(context.Background(), "plain", "123456")
+	if err != nil {
+		t.Fatalf("Challenge = %v, want nil", err)
+	}
+	if res.RememberToken != "" || res.PasswordHash != "" {
+		t.Errorf("result = %+v, want no recaller fields", res)
 	}
 }
 
 func TestBeginCreatesPendingSession(t *testing.T) {
 	svc, sessions := newFixture(&fakeVerifier{})
-	sid, err := svc.Begin(context.Background(), 7)
+	sid, err := svc.Begin(context.Background(), 7, false)
 	if err != nil {
 		t.Fatalf("Begin = %v, want nil", err)
 	}
@@ -209,6 +253,17 @@ func (m *memUserStore) SetTwoFactor(_ context.Context, id int64, secret, codes s
 func (m *memUserStore) ClearTwoFactor(_ context.Context, id int64) error {
 	u := m.users[id]
 	u.TwoFactorSecret, u.TwoFactorRecoveryCodes, u.TwoFactorConfirmedAt = nil, nil, nil
+	m.users[id] = u
+	return nil
+}
+
+func (m *memUserStore) SetRememberToken(_ context.Context, id int64, token *string) error {
+	u := m.users[id]
+	s := ""
+	if token != nil {
+		s = *token
+	}
+	u.RememberToken = &s
 	m.users[id] = u
 	return nil
 }
@@ -264,9 +319,9 @@ func TestChallengeRecoveryCodeConsumedExactlyOnce(t *testing.T) {
 	sessions := &fakeSessions{byID: map[string]generated.Session{
 		"pending": pendingSession("pending", 7),
 	}}
-	svc := twofactorchallenge.New(sessions, tfa)
+	svc := twofactorchallenge.New(sessions, tfa, users)
 
-	if err := svc.Challenge(ctx, "pending", codes[0]); err != nil {
+	if _, err := svc.Challenge(ctx, "pending", codes[0]); err != nil {
 		t.Fatalf("Challenge(recovery code) = %v, want nil", err)
 	}
 	if sessions.byID["pending"].UserID == nil {
@@ -275,7 +330,7 @@ func TestChallengeRecoveryCodeConsumedExactlyOnce(t *testing.T) {
 
 	// The consumed code must be gone: a new pending session retrying it fails.
 	sessions.byID["retry"] = pendingSession("retry", 7)
-	if err := svc.Challenge(ctx, "retry", codes[0]); !errors.Is(err, twofactor.ErrInvalidCode) {
+	if _, err := svc.Challenge(ctx, "retry", codes[0]); !errors.Is(err, twofactor.ErrInvalidCode) {
 		t.Errorf("Challenge(reused recovery code) = %v, want ErrInvalidCode", err)
 	}
 	if sessions.byID["retry"].UserID != nil {
