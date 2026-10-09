@@ -15,6 +15,7 @@ coverage*.html
 # Env files
 .env
 .env.*
+!.env.example
 
 # Node
 /node_modules/
