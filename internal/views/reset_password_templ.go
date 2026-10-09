@@ -71,7 +71,7 @@ func ResetPasswordPage(appName, csrfToken, token, email, errMsg string) templ.Co
 				var templ_7745c5c3_Var4 string
 				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(token)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `reset_password.templ`, Line: 11, Col: 51}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/reset_password.templ`, Line: 11, Col: 51}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 				if templ_7745c5c3_Err != nil {

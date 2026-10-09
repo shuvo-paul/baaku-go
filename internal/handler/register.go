@@ -41,11 +41,12 @@ type Register struct {
 	sessions SessionOpener
 	resend   VerificationSender
 	sessCfg  config.Session
+	eduCfg   config.Education
 	appName  string
 }
 
-func NewRegister(svc RegisterService, sessions SessionOpener, resend VerificationSender, sessCfg config.Session, appName string) *Register {
-	return &Register{svc: svc, sessions: sessions, resend: resend, sessCfg: sessCfg, appName: appName}
+func NewRegister(svc RegisterService, sessions SessionOpener, resend VerificationSender, sessCfg config.Session, eduCfg config.Education, appName string) *Register {
+	return &Register{svc: svc, sessions: sessions, resend: resend, sessCfg: sessCfg, eduCfg: eduCfg, appName: appName}
 }
 
 // Show renders GET /register; authenticated visitors bounce to the dashboard.
@@ -54,7 +55,7 @@ func (h *Register) Show(w http.ResponseWriter, r *http.Request) {
 		middleware.Redirect(w, r, middleware.DashboardPath)
 		return
 	}
-	views.RegisterPage(h.appName, middleware.TokenFromContext(r.Context()), "").Render(r.Context(), w)
+	views.RegisterPage(h.appName, middleware.TokenFromContext(r.Context()), h.data(r, nil, nil)).Render(r.Context(), w)
 }
 
 // Store handles POST /register: validate + insert (service), open a session
@@ -78,7 +79,7 @@ func (h *Register) Store(w http.ResponseWriter, r *http.Request) {
 	var fieldErrs register.FieldErrors
 	switch {
 	case errors.As(err, &fieldErrs):
-		h.renderForm(w, r, fieldErrs.Error())
+		h.renderForm(w, r, fieldErrs)
 		return
 	case err != nil:
 		http.Error(w, "internal server error", http.StatusInternalServerError)
@@ -100,8 +101,25 @@ func (h *Register) Store(w http.ResponseWriter, r *http.Request) {
 	middleware.Redirect(w, r, intendedDest(r, middleware.DashboardPath))
 }
 
-func (h *Register) renderForm(w http.ResponseWriter, r *http.Request, errMsg string) {
-	views.RegisterPage(h.appName, middleware.TokenFromContext(r.Context()), errMsg).Render(r.Context(), w)
+// renderForm re-renders the wizard with the field errors and the submitted
+// input repopulated (reference old() + $errors repopulation).
+func (h *Register) renderForm(w http.ResponseWriter, r *http.Request, fieldErrs register.FieldErrors) {
+	views.RegisterPage(h.appName, middleware.TokenFromContext(r.Context()), h.data(r, fieldErrs, oldEducationRows(r))).Render(r.Context(), w)
+}
+
+// data builds the wizard's server state: suggestion lists from
+// config.Education (reference config/education.php), old input and errors.
+func (h *Register) data(r *http.Request, errs map[string]string, rows []views.EducationRow) views.RegisterData {
+	return views.RegisterData{
+		Name:         strings.TrimSpace(r.FormValue("name")),
+		Email:        strings.TrimSpace(r.FormValue("email")),
+		Phone:        strings.TrimSpace(r.FormValue("phone")),
+		Errors:       errs,
+		Educations:   rows,
+		Levels:       h.eduCfg.Levels,
+		Institutions: h.eduCfg.Institutions,
+		Subjects:     h.eduCfg.Subjects,
+	}
 }
 
 // parseEducations collects educations[i][*] rows until the keys run out.
@@ -135,6 +153,32 @@ func parseEducations(r *http.Request) []register.EducationInput {
 			ed.EndMonth = v
 		}
 		out = append(out, ed)
+	}
+	return out
+}
+
+// oldEducationRows repopulates the wizard's education rows from the submitted
+// form (reference old('educations')). Values stay raw strings so the Alpine
+// state binds them straight back into the controls.
+func oldEducationRows(r *http.Request) []views.EducationRow {
+	var out []views.EducationRow
+	for i := 0; ; i++ {
+		p := fmt.Sprintf("educations[%d][", i)
+		row := views.EducationRow{
+			Level:       strings.TrimSpace(r.FormValue(p + "level]")),
+			Institution: strings.TrimSpace(r.FormValue(p + "institution]")),
+			StudentID:   strings.TrimSpace(r.FormValue(p + "student_id]")),
+			Subject:     strings.TrimSpace(r.FormValue(p + "subject]")),
+			StartYear:   strings.TrimSpace(r.FormValue(p + "start_year]")),
+			StartMonth:  strings.TrimSpace(r.FormValue(p + "start_month]")),
+			IsCurrent:   r.FormValue(p+"is_current]") == "1",
+			EndYear:     strings.TrimSpace(r.FormValue(p + "end_year]")),
+			EndMonth:    strings.TrimSpace(r.FormValue(p + "end_month]")),
+		}
+		if row.Level == "" && row.Institution == "" && row.Subject == "" && row.StartYear == "" {
+			break
+		}
+		out = append(out, row)
 	}
 	return out
 }

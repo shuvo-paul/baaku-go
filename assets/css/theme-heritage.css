@@ -76,11 +76,12 @@
 
     /*
      * Text-like form control (input/select/textarea). The reference delegates
-     * this chrome to TallStackUI (no Go port), so we recreate it against the
-     * heritage tokens: outline-variant border, Oxford Navy focus, gold ring.
+     * this chrome to TallStackUI (no Go port); these classes copy the
+     * reference's hand-styled controls (suggest/year-select blades):
+     * gray-300 border, Oxford Navy focus border, gold/50 ring.
      */
     .field-input {
-        @apply w-full rounded-md border border-outline-variant bg-white px-3 py-2 text-sm text-on-surface shadow-sm transition-colors placeholder:text-on-surface-variant/70 focus:border-navy focus:outline-none focus:ring-2 focus:ring-gold/40 dark:border-outline-variant dark:bg-surface-container dark:text-on-surface;
+        @apply w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-on-surface shadow-sm transition-colors placeholder:text-gray-400 focus:border-navy focus:outline-none focus:ring-2 focus:ring-gold/50 dark:border-gray-700 dark:bg-gray-800 dark:text-white;
     }
 
     /*

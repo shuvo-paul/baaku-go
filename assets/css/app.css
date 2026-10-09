@@ -7,6 +7,13 @@
 @import 'tailwindcss' source(none);
 @import './theme-heritage.css';
 
+/*
+ * Re-scope `dark:` to a `.dark` class (reference dashboard.css pattern):
+ * default media-driven dark would flip the light auth pages when the OS is
+ * in dark mode. No view sets class="dark", so dark: variants stay inert.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
 [x-cloak] { display: none !important; }
 
 /*

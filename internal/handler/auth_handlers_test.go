@@ -58,7 +58,7 @@ func (f *fakeResender) Resend(_ context.Context, userID int64) error {
 
 func registerRouter(t *testing.T, svc *fakeRegisterSvc, opener *fakeOpener, resend *fakeResender, store *fakeSessions) http.Handler {
 	t.Helper()
-	h := handler.NewRegister(svc, opener, resend, testSessCfg, "Baaku")
+	h := handler.NewRegister(svc, opener, resend, testSessCfg, config.Education{}, "Baaku")
 	r := chi.NewRouter()
 	r.Use(middleware.Session(testCookie, store))
 	r.Use(middleware.CSRF(csrfKey))

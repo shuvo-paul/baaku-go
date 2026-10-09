@@ -81,7 +81,7 @@ func EducationFormPage(f EducationForm) templ.Component {
 			var templ_7745c5c3_Var3 templ.SafeURL
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinURLErrs(educationAction(f.ID))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `profile_forms.templ`, Line: 26, Col: 53}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_forms.templ`, Line: 26, Col: 53}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -255,7 +255,7 @@ func CareerFormPage(f CareerForm) templ.Component {
 			var templ_7745c5c3_Var6 templ.SafeURL
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinURLErrs(careerAction(f.ID))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `profile_forms.templ`, Line: 83, Col: 50}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_forms.templ`, Line: 83, Col: 50}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {

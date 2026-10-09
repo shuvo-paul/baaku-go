@@ -1,11 +1,16 @@
 package views
 
+
+import (
+	"encoding/json"
+	"fmt"
+)
 // Card is the shared auth card (reference x-card / x-form-wrapper shell).
 // An empty title renders no heading.
 templ Card(title string) {
-	<div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+	<div class="rounded-lg bg-white p-6 shadow-[0_4px_20px_rgba(0,33,71,0.05)] dark:bg-gray-800">
 		if title != "" {
-			<h1 class="text-center text-2xl font-bold text-gray-900 dark:text-white">{ title }</h1>
+			<h1 class="mb-6 text-center text-2xl font-bold text-navy">{ title }</h1>
 		}
 		{ children... }
 	</div>
@@ -15,7 +20,7 @@ templ Card(title string) {
 // always required. attrs carries extras (autofocus, value, autocomplete,
 // inputmode); pass nil when there are none.
 templ TextInput(label, name, typ string, attrs templ.Attributes) {
-	<label class="block text-sm font-medium text-on-surface-variant">
+	<label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
 		{ label }
 		<input
 			type={ typ }
@@ -27,14 +32,42 @@ templ TextInput(label, name, typ string, attrs templ.Attributes) {
 	</label>
 }
 
-// PasswordInput mirrors reference x-form.password (type=password).
+// PasswordInput mirrors reference components/form/password.blade.php
+// (x-form.password): ring-style box with an Alpine reveal toggle.
 templ PasswordInput(label, name string, attrs templ.Attributes) {
-	@TextInput(label, name, "password", attrs)
+	<div x-data="{ show: false }">
+		<label for={ name } class="mb-1 block text-sm font-semibold text-gray-600 dark:text-gray-400">{ label }</label>
+		<div class="flex rounded-md bg-white text-gray-600 ring-1 ring-gray-300 focus-within:ring-2 focus-within:ring-navy-700 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-600">
+			<input
+				id={ name }
+				name={ name }
+				type="password"
+				x-bind:type="show ? 'text' : 'password'"
+				autocomplete="off"
+				@keydown.enter="$el.form.requestSubmit()"
+				class="w-full rounded-md border-0 bg-transparent py-1.5 pl-3 pr-0 text-sm leading-6 ring-0 placeholder:text-gray-400 focus:outline-hidden focus:ring-transparent sm:text-sm sm:leading-6"
+				{ attrs... }
+			/>
+			<div class="ml-1 mr-2 flex select-none items-center whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+				<button type="button" @click="show = !show" :aria-label="show ? 'Hide password' : 'Show password'" :aria-pressed="show" class="cursor-pointer">
+					<svg x-show="!show" class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" data-slot="icon">
+						<path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/>
+						<path fill-rule="evenodd" d="M1.323 11.447C2.811 6.976 7.028 3.75 12.001 3.75c4.97 0 9.185 3.223 10.675 7.69.12.362.12.752 0 1.113-1.487 4.471-5.705 7.697-10.677 7.697-4.97 0-9.186-3.223-10.675-7.69a1.762 1.762 0 0 1 0-1.113ZM17.25 12a5.25 5.25 0 1 1-10.5 0 5.25 5.25 0 0 1 10.5 0Z" clip-rule="evenodd"/>
+					</svg>
+					<svg x-show="show" class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" data-slot="icon">
+						<path d="M3.53 2.47a.75.75 0 0 0-1.06 1.06l18 18a.75.75 0 1 0 1.06-1.06l-18-18ZM22.676 12.553a11.249 11.249 0 0 1-2.631 4.31l-3.099-3.099a5.25 5.25 0 0 0-6.71-6.71L7.759 4.577a11.217 11.217 0 0 1 4.242-.827c4.97 0 9.185 3.223 10.675 7.69.12.362.12.752 0 1.113-1.487 4.471-5.705 7.697-10.677 7.697-4.97 0-9.186-3.223-10.675-7.69a1.762 1.762 0 0 1 0-1.113Z"/>
+						<path d="M15.75 12c0 .18-.013.357-.037.53l-4.244-4.243A3.75 3.75 0 0 1 15.75 12ZM12.53 15.713l-4.243-4.244a3.75 3.75 0 0 0 4.244 4.243Z"/>
+						<path d="M6.75 12c0-.619.107-1.213.304-1.764l-3.1-3.1a11.25 11.25 0 0 0-2.63 4.31c-.12.362-.12.752 0 1.114 1.489 4.467 5.704 7.69 10.675 7.69 1.5 0 2.933-.294 4.242-.827l-2.477-2.477A5.25 5.25 0 0 1 6.75 12Z"/>
+					</svg>
+				</button>
+			</div>
+		</div>
+	</div>
 }
 
 // OptionalInput is TextInput without the required attribute (nullable fields).
 templ OptionalInput(label, name, typ string, attrs templ.Attributes) {
-	<label class="block text-sm font-medium text-on-surface-variant">
+	<label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
 		{ label }
 		<input
 			type={ typ }
@@ -53,7 +86,7 @@ type Option struct {
 
 // Select mirrors reference x-select: label on top, always required.
 templ Select(label, name string, options []Option, attrs templ.Attributes) {
-	<label class="block text-sm font-medium text-on-surface-variant">
+	<label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
 		{ label }
 		<select
 			name={ name }
@@ -122,7 +155,7 @@ templ Checkbox(label, name string, checked bool, attrs templ.Attributes) {
 
 // Textarea is the labelled multi-line input (reference x-form.textarea).
 templ Textarea(label, name string, attrs templ.Attributes) {
-	<label class="block text-sm font-medium text-on-surface-variant">
+	<label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
 		{ label }
 		<textarea
 			name={ name }
@@ -141,7 +174,7 @@ templ OptionalTextarea(label, name, value string) {
 // SuggestInput is a text input backed by a <datalist> (reference x-suggest):
 // free text with autocomplete suggestions.
 templ SuggestInput(label, name, value string, suggestions []string, required bool, attrs templ.Attributes) {
-	<label class="block text-sm font-medium text-on-surface-variant">
+	<label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
 		{ label }
 		<input
 			type="text"
@@ -165,7 +198,7 @@ templ SuggestInput(label, name, value string, suggestions []string, required boo
 
 // YearSelect is the 4-digit year dropdown (reference x-year-select).
 templ YearSelect(label, name string, selected int32, required bool) {
-	<label class="block text-sm font-medium text-on-surface-variant">
+	<label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
 		{ label }
 		<select
 			name={ name }
@@ -184,7 +217,7 @@ templ YearSelect(label, name string, selected int32, required bool) {
 
 // MonthSelect is the 1–12 month dropdown (reference x-month-select).
 templ MonthSelect(label, name string, selected int16) {
-	<label class="block text-sm font-medium text-on-surface-variant">
+	<label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
 		{ label }
 		<select
 			name={ name }
@@ -202,7 +235,7 @@ templ MonthSelect(label, name string, selected int16) {
 // SelectWithBlank is a Select prefixed with an empty "—" option and the
 // current value pre-selected (nullable enum fields on the details form).
 templ SelectWithBlank(label, name string, options []Option, selected string) {
-	<label class="block text-sm font-medium text-on-surface-variant">
+	<label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
 		{ label }
 		<select
 			name={ name }
@@ -302,6 +335,103 @@ templ PhotoCropper(name, chooseLabel, existing, initial, boxClass, errMsg string
 					</div>
 				</div>
 			</div>
+		</div>
+	</div>
+}
+
+
+/*
+SuggestField is the Alpine autocomplete of reference components/suggest.blade
+(x-suggest): free text with a filtered keyboard-navigable listbox. Used inside
+the register wizard's x-for rows, so the name/model bindings arrive via attrs
+(x-bind:name + x-model); suggestions is the static list.
+*/
+func suggestXData(suggestions []string) string {
+	if suggestions == nil {
+		suggestions = []string{}
+	}
+	list, _ := json.Marshal(suggestions) // cannot fail: []string
+	return fmt.Sprintf(suggestXDataFormat, list)
+}
+
+const suggestXDataFormat = `{
+	suggestions: %s,
+	value: '',
+	open: false,
+	highlighted: -1,
+	get filtered() {
+		const q = this.value.trim().toLowerCase();
+		return this.suggestions.filter((s) => !q || s.toLowerCase().includes(q));
+	},
+	onInput(event) {
+		this.value = event.target.value;
+		this.open = true;
+	},
+	select(s) {
+		this.value = s;
+		const input = this.$refs.input;
+		input.value = s;
+		input.dispatchEvent(new Event('input', { bubbles: true }));
+		this.open = false;
+		this.highlighted = -1;
+	},
+	onKeydown(event) {
+		if (!this.open || this.filtered.length === 0) return;
+
+		if (event.key === 'ArrowDown') {
+			event.preventDefault();
+			event.stopPropagation();
+			this.highlighted = (this.highlighted + 1) %% this.filtered.length;
+		} else if (event.key === 'ArrowUp') {
+			event.preventDefault();
+			event.stopPropagation();
+			this.highlighted = (this.highlighted - 1 + this.filtered.length) %% this.filtered.length;
+		} else if (event.key === 'Enter' && this.highlighted >= 0) {
+			event.preventDefault();
+			event.stopPropagation();
+			this.select(this.filtered[this.highlighted]);
+		} else if (event.key === 'Escape') {
+			event.stopPropagation();
+			this.open = false;
+			this.highlighted = -1;
+		}
+	}
+}`
+
+templ SuggestField(label string, suggestions []string, attrs templ.Attributes) {
+	<div x-data={ suggestXData(suggestions) } class="relative">
+		<label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+			{ label }
+		</label>
+		<input
+			x-ref="input"
+			type="text"
+			autocomplete="off"
+			class="field-input"
+			@focus="open = true; highlighted = -1"
+			@blur="open = false; highlighted = -1"
+			@input="onInput($event)"
+			@keydown="onKeydown($event)"
+			{ attrs... }
+		/>
+		<div
+			x-show="open && filtered.length"
+			x-cloak
+			role="listbox"
+			class="absolute inset-x-0 top-full z-10 mt-1 overflow-hidden rounded-md border border-gray-300 bg-white py-1 shadow-lg"
+		>
+			<template x-for="(s, i) in filtered" :key="s">
+				<button
+					type="button"
+					role="option"
+					:aria-selected="i === highlighted ? 'true' : 'false'"
+					@mousedown.prevent="select(s)"
+					@mousemove="highlighted = i"
+					:class="i === highlighted ? 'bg-navy text-white' : 'text-gray-700'"
+					class="block w-full px-3 py-2 text-left text-sm"
+					x-text="s"
+				></button>
+			</template>
 		</div>
 	</div>
 }

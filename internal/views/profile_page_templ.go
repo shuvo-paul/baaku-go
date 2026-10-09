@@ -331,7 +331,7 @@ func profileEducationTab(d ProfilePageData) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(educationYears(e))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `profile_page.templ`, Line: 149, Col: 57}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_page.templ`, Line: 149, Col: 57}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -344,7 +344,7 @@ func profileEducationTab(d ProfilePageData) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(e.Institution)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `profile_page.templ`, Line: 150, Col: 81}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_page.templ`, Line: 150, Col: 81}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -357,7 +357,7 @@ func profileEducationTab(d ProfilePageData) templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(educationLevelSubject(e))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `profile_page.templ`, Line: 151, Col: 82}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_page.templ`, Line: 151, Col: 82}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -370,7 +370,7 @@ func profileEducationTab(d ProfilePageData) templ.Component {
 			var templ_7745c5c3_Var8 templ.SafeURL
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL("/dashboard/profile/educations/" + idPath(e.ID) + "/edit"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `profile_page.templ`, Line: 154, Col: 84}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_page.templ`, Line: 154, Col: 84}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
@@ -383,7 +383,7 @@ func profileEducationTab(d ProfilePageData) templ.Component {
 			var templ_7745c5c3_Var9 templ.SafeURL
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL("/dashboard/profile/educations/" + idPath(e.ID)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `profile_page.templ`, Line: 155, Col: 93}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_page.templ`, Line: 155, Col: 93}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
@@ -449,7 +449,7 @@ func profileCareerTab(d ProfilePageData) templ.Component {
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(careerYears(c))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `profile_page.templ`, Line: 183, Col: 54}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_page.templ`, Line: 183, Col: 54}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
@@ -462,7 +462,7 @@ func profileCareerTab(d ProfilePageData) templ.Component {
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(c.JobTitle)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `profile_page.templ`, Line: 185, Col: 74}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_page.templ`, Line: 185, Col: 74}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
@@ -475,7 +475,7 @@ func profileCareerTab(d ProfilePageData) templ.Component {
 			var templ_7745c5c3_Var13 string
 			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(employmentLabel(c.EmploymentType, d.EmploymentTypes))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `profile_page.templ`, Line: 186, Col: 146}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_page.templ`, Line: 186, Col: 146}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 			if templ_7745c5c3_Err != nil {
@@ -488,7 +488,7 @@ func profileCareerTab(d ProfilePageData) templ.Component {
 			var templ_7745c5c3_Var14 string
 			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(c.Company)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `profile_page.templ`, Line: 188, Col: 67}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_page.templ`, Line: 188, Col: 67}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 			if templ_7745c5c3_Err != nil {
@@ -506,7 +506,7 @@ func profileCareerTab(d ProfilePageData) templ.Component {
 				var templ_7745c5c3_Var15 string
 				templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(joinNonEmpty(c.Industry, c.Location))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `profile_page.templ`, Line: 190, Col: 95}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_page.templ`, Line: 190, Col: 95}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 				if templ_7745c5c3_Err != nil {
@@ -525,7 +525,7 @@ func profileCareerTab(d ProfilePageData) templ.Component {
 				var templ_7745c5c3_Var16 string
 				templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(c.Description)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `profile_page.templ`, Line: 193, Col: 70}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_page.templ`, Line: 193, Col: 70}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 				if templ_7745c5c3_Err != nil {
@@ -543,7 +543,7 @@ func profileCareerTab(d ProfilePageData) templ.Component {
 			var templ_7745c5c3_Var17 templ.SafeURL
 			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL("/dashboard/profile/careers/" + idPath(c.ID) + "/edit"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `profile_page.templ`, Line: 197, Col: 81}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_page.templ`, Line: 197, Col: 81}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 			if templ_7745c5c3_Err != nil {
@@ -556,7 +556,7 @@ func profileCareerTab(d ProfilePageData) templ.Component {
 			var templ_7745c5c3_Var18 templ.SafeURL
 			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL("/dashboard/profile/careers/" + idPath(c.ID)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `profile_page.templ`, Line: 198, Col: 90}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_page.templ`, Line: 198, Col: 90}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 			if templ_7745c5c3_Err != nil {
@@ -653,7 +653,7 @@ func profileSecurityTab(d ProfilePageData) templ.Component {
 				var templ_7745c5c3_Var20 string
 				templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(d.SetupKey)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `profile_page.templ`, Line: 229, Col: 128}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_page.templ`, Line: 229, Col: 128}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 				if templ_7745c5c3_Err != nil {
@@ -697,7 +697,7 @@ func profileSecurityTab(d ProfilePageData) templ.Component {
 					var templ_7745c5c3_Var21 string
 					templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(code)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `profile_page.templ`, Line: 240, Col: 40}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_page.templ`, Line: 240, Col: 40}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 					if templ_7745c5c3_Err != nil {

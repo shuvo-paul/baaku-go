@@ -112,7 +112,7 @@ func main() {
 		return sendMail(email, subject, body)
 	}
 
-	regH := handler.NewRegister(register.NewRegisterService(users), sessStore, resender, cfg.Session, cfg.App.Name)
+	regH := handler.NewRegister(register.NewRegisterService(users), sessStore, resender, cfg.Session, cfg.Education, cfg.App.Name)
 	prh := handler.NewPasswordReset(resetSvc, sendResetLink, cfg.App.Name)
 	evh := handler.NewEmailVerify(users, resender, rawKey, cfg.App.Name)
 	cph := handler.NewConfirmPassword(passwordconfirm.New(users, confirmRepo), cfg.App.Name)

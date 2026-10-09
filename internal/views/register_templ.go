@@ -8,11 +8,11 @@ package views
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-// RegisterPage mirrors reference auth/register.blade.php. The reference blade
-// is a two-step Alpine wizard (education repeat + account details); this
-// placeholder carries one static education row plus the Fortify POST /register
-// account fields — the repeat-row Alpine wiring lands in a later wave.
-func RegisterPage(appName, csrfToken, errMsg string) templ.Component {
+// RegisterPage mirrors reference auth/register.blade.php: a two-step Alpine
+// wizard (repeatable education rows, then account details) with client-side
+// step validation, per-field errors and old-input repopulation. Labels follow
+// reference/lang/en/{auth,education}.php.
+func RegisterPage(appName, csrfToken string, d RegisterData) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -45,6 +45,10 @@ func RegisterPage(appName, csrfToken, errMsg string) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"mx-auto w-full max-w-lg\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
 			templ_7745c5c3_Var3 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 				templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 				templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -57,7 +61,20 @@ func RegisterPage(appName, csrfToken, errMsg string) templ.Component {
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<form method=\"POST\" action=\"/register\" class=\"space-y-4\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<form method=\"POST\" action=\"/register\" class=\"space-y-4\" x-data=\"")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var4 string
+				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(registerXData(d))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/register.templ`, Line: 11, Col: 86}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\" x-ref=\"form\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -65,85 +82,225 @@ func RegisterPage(appName, csrfToken, errMsg string) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = TextInput("Name", "name", "text", templ.Attributes{"autofocus": true}).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<ol aria-label=\"Register\" class=\"mx-auto mb-6 flex w-full max-w-xs items-center text-xs\"><li class=\"flex flex-1 items-center\" :aria-current=\"step === 1 ? 'step' : null\"><span class=\"flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold\" :class=\"step > 1 ? 'border-navy bg-navy text-white' : (step === 1 ? 'border-navy text-navy' : 'border-gray-300 text-gray-400')\"><span x-show=\"step > 1\" x-cloak>&#10003;</span> <span x-show=\"step <= 1\" x-cloak>1</span></span> <span class=\"ml-2 hidden font-medium sm:block\" :class=\"step >= 1 ? 'text-navy' : 'text-gray-400'\">Education</span> <span class=\"mx-2 h-px flex-1\" :class=\"step > 1 ? 'bg-navy' : 'bg-gray-300'\"></span></li><li class=\"flex items-center\" :aria-current=\"step === 2 ? 'step' : null\"><span class=\"flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold\" :class=\"step === 2 ? 'border-navy text-navy' : 'border-gray-300 text-gray-400'\">2</span> <span class=\"ml-2 hidden font-medium sm:block\" :class=\"step >= 2 ? 'text-navy' : 'text-gray-400'\">Account Details</span></li></ol><p class=\"mb-4 text-center text-xs text-gray-500 sm:hidden\">Step <span x-text=\"step\" class=\"font-semibold text-navy\"></span> of 2</p><div x-show=\"step === 1\" x-cloak x-transition:enter=\"transition ease-out duration-200 motion-reduce:transition-none\" x-transition:enter-start=\"opacity-0 -translate-y-1\" x-transition:enter-end=\"opacity-100 translate-y-0\" x-transition:leave=\"transition ease-in duration-150 motion-reduce:transition-none\" x-transition:leave-start=\"opacity-100\" x-transition:leave-end=\"opacity-0\" @keydown.enter=\"event.target.tagName === 'TEXTAREA' || (event.preventDefault(), attemptStep(1))\" @focusout=\"liveValidate()\"><div class=\"space-y-3\"><label class=\"block text-sm font-medium text-gray-700 dark:text-gray-300\">Education</label><template x-for=\"(edu, index) in educations\" :key=\"index\"><div class=\"space-y-4 rounded-lg border border-gray-200 p-4 dark:border-gray-700\"><div class=\"flex justify-end\" x-show=\"educations.length > 1\"><button type=\"button\" @click=\"removeEducation(index)\" class=\"rounded border border-red-600 px-2 py-1 text-xs font-semibold text-red-600 transition-colors hover:bg-red-600 hover:text-white focus-visible:ring-2 focus-visible:ring-red-500/50\">Remove</button></div><div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = TextInput("Email", "email", "email", nil).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = SuggestField("Level", d.Levels, templ.Attributes{"x-bind:name": "'educations[' + index + '][level]'", "x-model": "edu.level", "required": true}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = TextInput("Phone", "phone", "tel", nil).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<p x-show=\"fieldError('educations.' + index + '.level')\" x-cloak x-text=\"fieldError('educations.' + index + '.level')\" class=\"mt-1.5 text-sm font-medium text-error\" role=\"alert\"></p></div><div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = PasswordInput("Password", "password", nil).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = SuggestField("Institution", d.Institutions, templ.Attributes{"x-bind:name": "'educations[' + index + '][institution]'", "x-model": "edu.institution", "required": true}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = PasswordInput("Confirm password", "password_confirmation", nil).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<p x-show=\"fieldError('educations.' + index + '.institution')\" x-cloak x-text=\"fieldError('educations.' + index + '.institution')\" class=\"mt-1.5 text-sm font-medium text-error\" role=\"alert\"></p></div><div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<fieldset class=\"space-y-4 rounded-md border border-gray-200 p-4 dark:border-gray-700\"><legend class=\"px-1 text-sm font-semibold text-gray-700 dark:text-gray-300\">Education</legend>")
+				templ_7745c5c3_Err = SuggestField("Subject", d.Subjects, templ.Attributes{"x-bind:name": "'educations[' + index + '][subject]'", "x-model": "edu.subject", "required": true}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = TextInput("Level", "educations[0][level]", "text", nil).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<p x-show=\"fieldError('educations.' + index + '.subject')\" x-cloak x-text=\"fieldError('educations.' + index + '.subject')\" class=\"mt-1.5 text-sm font-medium text-error\" role=\"alert\"></p></div><div><label class=\"mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300\">Student ID <input type=\"text\" x-bind:name=\"'educations[' + index + '][student_id]'\" x-model=\"edu.student_id\" class=\"field-input\"></label><p x-show=\"fieldError('educations.' + index + '.student_id')\" x-cloak x-text=\"fieldError('educations.' + index + '.student_id')\" class=\"mt-1.5 text-sm font-medium text-error\" role=\"alert\"></p></div><div class=\"grid grid-cols-2 gap-4\"><div><label class=\"mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300\">Start Year <select x-bind:name=\"'educations[' + index + '][start_year]'\" x-model=\"edu.start_year\" class=\"field-input\" required><option value=\"\">—</option> ")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = TextInput("Institution", "educations[0][institution]", "text", nil).Render(ctx, templ_7745c5c3_Buffer)
+				for _, y := range registerYears() {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<option value=\"")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var5 string
+					templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(y)
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/register.templ`, Line: 85, Col: 31}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\">")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var6 string
+					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(y)
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/register.templ`, Line: 85, Col: 37}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</option>")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</select></label><p x-show=\"fieldError('educations.' + index + '.start_year')\" x-cloak x-text=\"fieldError('educations.' + index + '.start_year')\" class=\"mt-1.5 text-sm font-medium text-error\" role=\"alert\"></p></div><div><label class=\"mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300\">Start Month <select x-bind:name=\"'educations[' + index + '][start_month]'\" x-model=\"edu.start_month\" class=\"field-input\"><option value=\"\">—</option> ")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = OptionalInput("Student ID", "educations[0][student_id]", "text", nil).Render(ctx, templ_7745c5c3_Buffer)
+				for i, m := range registerMonths() {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<option value=\"")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var7 string
+					templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.ResolveAttributeValue(itoa(i + 1))
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/register.templ`, Line: 97, Col: 41}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var7)
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\">")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var8 string
+					templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(m)
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/register.templ`, Line: 97, Col: 47}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "</option>")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "</select></label><p x-show=\"fieldError('educations.' + index + '.start_month')\" x-cloak x-text=\"fieldError('educations.' + index + '.start_month')\" class=\"mt-1.5 text-sm font-medium text-error\" role=\"alert\"></p></div></div><label class=\"flex items-center gap-2\"><input type=\"hidden\" x-bind:name=\"'educations[' + index + '][is_current]'\" value=\"0\"> <input type=\"checkbox\" x-bind:name=\"'educations[' + index + '][is_current]'\" value=\"1\" x-model=\"edu.is_current\" class=\"rounded border-gray-300 text-indigo-600 focus:ring-indigo-500\"> <span class=\"text-sm text-gray-700 dark:text-gray-300\">Currently studying</span></label><div class=\"grid grid-cols-2 gap-4\" x-show=\"!edu.is_current\"><div><label class=\"mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300\">End Year <select x-bind:name=\"'educations[' + index + '][end_year]'\" x-model=\"edu.end_year\" class=\"field-input\"><option value=\"\">—</option> ")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = TextInput("Subject", "educations[0][subject]", "text", nil).Render(ctx, templ_7745c5c3_Buffer)
+				for _, y := range registerYears() {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "<option value=\"")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var9 string
+					templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.ResolveAttributeValue(y)
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/register.templ`, Line: 116, Col: 31}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var9)
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "\">")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var10 string
+					templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(y)
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/register.templ`, Line: 116, Col: 37}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "</option>")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "</select></label><p x-show=\"fieldError('educations.' + index + '.end_year')\" x-cloak x-text=\"fieldError('educations.' + index + '.end_year')\" class=\"mt-1.5 text-sm font-medium text-error\" role=\"alert\"></p></div><div><label class=\"mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300\">End Month <select x-bind:name=\"'educations[' + index + '][end_month]'\" x-model=\"edu.end_month\" class=\"field-input\"><option value=\"\">—</option> ")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = TextInput("Start year", "educations[0][start_year]", "number", templ.Attributes{"min": "1000", "max": "9999"}).Render(ctx, templ_7745c5c3_Buffer)
+				for i, m := range registerMonths() {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "<option value=\"")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var11 string
+					templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.ResolveAttributeValue(itoa(i + 1))
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/register.templ`, Line: 128, Col: 41}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var11)
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "\">")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var12 string
+					templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(m)
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/register.templ`, Line: 128, Col: 47}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "</option>")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "</select></label><p x-show=\"fieldError('educations.' + index + '.end_month')\" x-cloak x-text=\"fieldError('educations.' + index + '.end_month')\" class=\"mt-1.5 text-sm font-medium text-error\" role=\"alert\"></p></div></div></div></template><button type=\"button\" @click=\"addEducation()\" class=\"btn-secondary w-full px-2 py-1 text-xs\">Add Another Education</button></div></div><div x-show=\"step === 2\" x-cloak x-transition:enter=\"transition ease-out duration-200 motion-reduce:transition-none\" x-transition:enter-start=\"opacity-0 -translate-y-1\" x-transition:enter-end=\"opacity-100 translate-y-0\" x-transition:leave=\"transition ease-in duration-150 motion-reduce:transition-none\" x-transition:leave-start=\"opacity-100\" x-transition:leave-end=\"opacity-0\" @keydown.enter=\"event.target.tagName === 'TEXTAREA' || (event.preventDefault(), attemptStep(2))\" @focusout=\"liveValidate()\"><div class=\"space-y-4\"><div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = OptionalInput("Start month", "educations[0][start_month]", "number", templ.Attributes{"min": "1", "max": "12"}).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = TextInput("Name", "name", "text", templ.Attributes{"autofocus": true, "value": d.Name}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<label class=\"flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300\"><input type=\"checkbox\" name=\"educations[0][is_current]\" value=\"1\" class=\"rounded border-gray-300 text-indigo-600 focus:ring-indigo-500\"> Currently enrolled</label>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "<p x-show=\"fieldError('name')\" x-cloak x-text=\"fieldError('name')\" class=\"mt-1.5 text-sm font-medium text-error\" role=\"alert\"></p></div><div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = OptionalInput("End year", "educations[0][end_year]", "number", templ.Attributes{"min": "1000", "max": "9999"}).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = TextInput("Email", "email", "email", templ.Attributes{"value": d.Email}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = OptionalInput("End month", "educations[0][end_month]", "number", templ.Attributes{"min": "1", "max": "12"}).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "<p x-show=\"fieldError('email')\" x-cloak x-text=\"fieldError('email')\" class=\"mt-1.5 text-sm font-medium text-error\" role=\"alert\"></p></div><div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</fieldset>")
+				templ_7745c5c3_Err = TextInput("Phone", "phone", "tel", templ.Attributes{"value": d.Phone}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = ErrText(errMsg).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "<p x-show=\"fieldError('phone')\" x-cloak x-text=\"fieldError('phone')\" class=\"mt-1.5 text-sm font-medium text-error\" role=\"alert\"></p></div><div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = SubmitButton("Register").Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = PasswordInput("Password", "password", templ.Attributes{"required": true}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</form><div class=\"mt-4 text-center text-sm text-gray-600 dark:text-gray-400\">Already registered? <a href=\"/login\" class=\"text-indigo-600 hover:text-indigo-500\">Sign in</a></div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "<p x-show=\"fieldError('password')\" x-cloak x-text=\"fieldError('password')\" class=\"mt-1.5 text-sm font-medium text-error\" role=\"alert\"></p></div><div>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = PasswordInput("Confirm Password", "password_confirmation", templ.Attributes{"required": true}).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "<p x-show=\"fieldError('password_confirmation')\" x-cloak x-text=\"fieldError('password_confirmation')\" class=\"mt-1.5 text-sm font-medium text-error\" role=\"alert\"></p></div></div></div><div class=\"flex items-center justify-between gap-2 pt-2\"><button type=\"button\" x-show=\"step > 1\" x-cloak @click=\"step--\" class=\"btn-secondary\">Back</button><div class=\"flex justify-end\"><button type=\"button\" x-show=\"step < 2\" x-cloak @click=\"attemptStep(step)\" class=\"btn-primary\">Next</button> <button type=\"submit\" x-show=\"step === 2\" x-cloak class=\"btn-primary\">Register</button></div></div></form><div class=\"mt-6 border-t border-gray-200 pt-4 text-center dark:border-gray-700\"><span class=\"text-sm text-gray-600 dark:text-gray-400\">Already registered?</span> <a href=\"/login\" class=\"text-sm text-indigo-600 hover:text-indigo-500\">Sign in</a></div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				return nil
 			})
 			templ_7745c5c3_Err = Card("Register").Render(templ.WithChildren(ctx, templ_7745c5c3_Var3), templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "</div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

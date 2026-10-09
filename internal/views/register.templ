@@ -1,41 +1,190 @@
 package views
 
-// RegisterPage mirrors reference auth/register.blade.php. The reference blade
-// is a two-step Alpine wizard (education repeat + account details); this
-// placeholder carries one static education row plus the Fortify POST /register
-// account fields — the repeat-row Alpine wiring lands in a later wave.
-templ RegisterPage(appName, csrfToken, errMsg string) {
+// RegisterPage mirrors reference auth/register.blade.php: a two-step Alpine
+// wizard (repeatable education rows, then account details) with client-side
+// step validation, per-field errors and old-input repopulation. Labels follow
+// reference/lang/en/{auth,education}.php.
+templ RegisterPage(appName, csrfToken string, d RegisterData) {
 	@Layout(appName) {
-		@Card("Register") {
-			<form method="POST" action="/register" class="space-y-4">
-				@CSRFToken(csrfToken)
-				@TextInput("Name", "name", "text", templ.Attributes{"autofocus": true})
-				@TextInput("Email", "email", "email", nil)
-				@TextInput("Phone", "phone", "tel", nil)
-				@PasswordInput("Password", "password", nil)
-				@PasswordInput("Confirm password", "password_confirmation", nil)
-				<fieldset class="space-y-4 rounded-md border border-gray-200 p-4 dark:border-gray-700">
-					<legend class="px-1 text-sm font-semibold text-gray-700 dark:text-gray-300">Education</legend>
-					@TextInput("Level", "educations[0][level]", "text", nil)
-					@TextInput("Institution", "educations[0][institution]", "text", nil)
-					@OptionalInput("Student ID", "educations[0][student_id]", "text", nil)
-					@TextInput("Subject", "educations[0][subject]", "text", nil)
-					@TextInput("Start year", "educations[0][start_year]", "number", templ.Attributes{"min": "1000", "max": "9999"})
-					@OptionalInput("Start month", "educations[0][start_month]", "number", templ.Attributes{"min": "1", "max": "12"})
-					<label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-						<input type="checkbox" name="educations[0][is_current]" value="1" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"/>
-						Currently enrolled
-					</label>
-					@OptionalInput("End year", "educations[0][end_year]", "number", templ.Attributes{"min": "1000", "max": "9999"})
-					@OptionalInput("End month", "educations[0][end_month]", "number", templ.Attributes{"min": "1", "max": "12"})
-				</fieldset>
-				@ErrText(errMsg)
-				@SubmitButton("Register")
-			</form>
-			<div class="mt-4 text-center text-sm text-gray-600 dark:text-gray-400">
-				Already registered?
-				<a href="/login" class="text-indigo-600 hover:text-indigo-500">Sign in</a>
-			</div>
-		}
+		<div class="mx-auto w-full max-w-lg">
+			@Card("Register") {
+				<form method="POST" action="/register" class="space-y-4" x-data={ registerXData(d) } x-ref="form">
+					@CSRFToken(csrfToken)
+					<ol aria-label="Register" class="mx-auto mb-6 flex w-full max-w-xs items-center text-xs">
+						<li class="flex flex-1 items-center" :aria-current="step === 1 ? 'step' : null">
+							<span
+								class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold"
+								:class="step > 1 ? 'border-navy bg-navy text-white' : (step === 1 ? 'border-navy text-navy' : 'border-gray-300 text-gray-400')"
+							>
+								<span x-show="step > 1" x-cloak>&#10003;</span>
+								<span x-show="step <= 1" x-cloak>1</span>
+							</span>
+							<span class="ml-2 hidden font-medium sm:block" :class="step >= 1 ? 'text-navy' : 'text-gray-400'">Education</span>
+							<span class="mx-2 h-px flex-1" :class="step > 1 ? 'bg-navy' : 'bg-gray-300'"></span>
+						</li>
+						<li class="flex items-center" :aria-current="step === 2 ? 'step' : null">
+							<span
+								class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold"
+								:class="step === 2 ? 'border-navy text-navy' : 'border-gray-300 text-gray-400'"
+							>
+								2
+							</span>
+							<span class="ml-2 hidden font-medium sm:block" :class="step >= 2 ? 'text-navy' : 'text-gray-400'">Account Details</span>
+						</li>
+					</ol>
+					<p class="mb-4 text-center text-xs text-gray-500 sm:hidden">
+						Step <span x-text="step" class="font-semibold text-navy"></span> of 2
+					</p>
+					<div
+						x-show="step === 1"
+						x-cloak
+						x-transition:enter="transition ease-out duration-200 motion-reduce:transition-none"
+						x-transition:enter-start="opacity-0 -translate-y-1"
+						x-transition:enter-end="opacity-100 translate-y-0"
+						x-transition:leave="transition ease-in duration-150 motion-reduce:transition-none"
+						x-transition:leave-start="opacity-100"
+						x-transition:leave-end="opacity-0"
+						@keydown.enter="event.target.tagName === 'TEXTAREA' || (event.preventDefault(), attemptStep(1))"
+						@focusout="liveValidate()"
+					>
+						<div class="space-y-3">
+							<label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+								Education
+							</label>
+							<template x-for="(edu, index) in educations" :key="index">
+								<div class="space-y-4 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+									<div class="flex justify-end" x-show="educations.length > 1">
+										<button type="button" @click="removeEducation(index)" class="rounded border border-red-600 px-2 py-1 text-xs font-semibold text-red-600 transition-colors hover:bg-red-600 hover:text-white focus-visible:ring-2 focus-visible:ring-red-500/50">Remove</button>
+									</div>
+									<div>
+										@SuggestField("Level", d.Levels, templ.Attributes{"x-bind:name": "'educations[' + index + '][level]'", "x-model": "edu.level", "required": true})
+										<p x-show="fieldError('educations.' + index + '.level')" x-cloak x-text="fieldError('educations.' + index + '.level')" class="mt-1.5 text-sm font-medium text-error" role="alert"></p>
+									</div>
+									<div>
+										@SuggestField("Institution", d.Institutions, templ.Attributes{"x-bind:name": "'educations[' + index + '][institution]'", "x-model": "edu.institution", "required": true})
+										<p x-show="fieldError('educations.' + index + '.institution')" x-cloak x-text="fieldError('educations.' + index + '.institution')" class="mt-1.5 text-sm font-medium text-error" role="alert"></p>
+									</div>
+									<div>
+										@SuggestField("Subject", d.Subjects, templ.Attributes{"x-bind:name": "'educations[' + index + '][subject]'", "x-model": "edu.subject", "required": true})
+										<p x-show="fieldError('educations.' + index + '.subject')" x-cloak x-text="fieldError('educations.' + index + '.subject')" class="mt-1.5 text-sm font-medium text-error" role="alert"></p>
+									</div>
+									<div>
+										<label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+											Student ID
+											<input type="text" x-bind:name="'educations[' + index + '][student_id]'" x-model="edu.student_id" class="field-input"/>
+										</label>
+										<p x-show="fieldError('educations.' + index + '.student_id')" x-cloak x-text="fieldError('educations.' + index + '.student_id')" class="mt-1.5 text-sm font-medium text-error" role="alert"></p>
+									</div>
+									<div class="grid grid-cols-2 gap-4">
+										<div>
+											<label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+												Start Year
+												<select x-bind:name="'educations[' + index + '][start_year]'" x-model="edu.start_year" class="field-input" required>
+													<option value="">—</option>
+													for _, y := range registerYears() {
+														<option value={ y }>{ y }</option>
+													}
+												</select>
+											</label>
+											<p x-show="fieldError('educations.' + index + '.start_year')" x-cloak x-text="fieldError('educations.' + index + '.start_year')" class="mt-1.5 text-sm font-medium text-error" role="alert"></p>
+										</div>
+										<div>
+											<label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+												Start Month
+												<select x-bind:name="'educations[' + index + '][start_month]'" x-model="edu.start_month" class="field-input">
+													<option value="">—</option>
+													for i, m := range registerMonths() {
+														<option value={ itoa(i + 1) }>{ m }</option>
+													}
+												</select>
+											</label>
+											<p x-show="fieldError('educations.' + index + '.start_month')" x-cloak x-text="fieldError('educations.' + index + '.start_month')" class="mt-1.5 text-sm font-medium text-error" role="alert"></p>
+										</div>
+									</div>
+									<label class="flex items-center gap-2">
+										<input type="hidden" x-bind:name="'educations[' + index + '][is_current]'" value="0"/>
+										<input type="checkbox" x-bind:name="'educations[' + index + '][is_current]'" value="1" x-model="edu.is_current" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"/>
+										<span class="text-sm text-gray-700 dark:text-gray-300">Currently studying</span>
+									</label>
+									<div class="grid grid-cols-2 gap-4" x-show="!edu.is_current">
+										<div>
+											<label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+												End Year
+												<select x-bind:name="'educations[' + index + '][end_year]'" x-model="edu.end_year" class="field-input">
+													<option value="">—</option>
+													for _, y := range registerYears() {
+														<option value={ y }>{ y }</option>
+													}
+												</select>
+											</label>
+											<p x-show="fieldError('educations.' + index + '.end_year')" x-cloak x-text="fieldError('educations.' + index + '.end_year')" class="mt-1.5 text-sm font-medium text-error" role="alert"></p>
+										</div>
+										<div>
+											<label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+												End Month
+												<select x-bind:name="'educations[' + index + '][end_month]'" x-model="edu.end_month" class="field-input">
+													<option value="">—</option>
+													for i, m := range registerMonths() {
+														<option value={ itoa(i + 1) }>{ m }</option>
+													}
+												</select>
+											</label>
+											<p x-show="fieldError('educations.' + index + '.end_month')" x-cloak x-text="fieldError('educations.' + index + '.end_month')" class="mt-1.5 text-sm font-medium text-error" role="alert"></p>
+										</div>
+									</div>
+								</div>
+							</template>
+							<button type="button" @click="addEducation()" class="btn-secondary w-full px-2 py-1 text-xs">Add Another Education</button>
+						</div>
+					</div>
+					<div
+						x-show="step === 2"
+						x-cloak
+						x-transition:enter="transition ease-out duration-200 motion-reduce:transition-none"
+						x-transition:enter-start="opacity-0 -translate-y-1"
+						x-transition:enter-end="opacity-100 translate-y-0"
+						x-transition:leave="transition ease-in duration-150 motion-reduce:transition-none"
+						x-transition:leave-start="opacity-100"
+						x-transition:leave-end="opacity-0"
+						@keydown.enter="event.target.tagName === 'TEXTAREA' || (event.preventDefault(), attemptStep(2))"
+						@focusout="liveValidate()"
+					>
+						<div class="space-y-4">
+							<div>
+								@TextInput("Name", "name", "text", templ.Attributes{"autofocus": true, "value": d.Name})
+								<p x-show="fieldError('name')" x-cloak x-text="fieldError('name')" class="mt-1.5 text-sm font-medium text-error" role="alert"></p>
+							</div>
+							<div>
+								@TextInput("Email", "email", "email", templ.Attributes{"value": d.Email})
+								<p x-show="fieldError('email')" x-cloak x-text="fieldError('email')" class="mt-1.5 text-sm font-medium text-error" role="alert"></p>
+							</div>
+							<div>
+								@TextInput("Phone", "phone", "tel", templ.Attributes{"value": d.Phone})
+								<p x-show="fieldError('phone')" x-cloak x-text="fieldError('phone')" class="mt-1.5 text-sm font-medium text-error" role="alert"></p>
+							</div>
+							<div>
+								@PasswordInput("Password", "password", templ.Attributes{"required": true})
+								<p x-show="fieldError('password')" x-cloak x-text="fieldError('password')" class="mt-1.5 text-sm font-medium text-error" role="alert"></p>
+							</div>
+							<div>
+								@PasswordInput("Confirm Password", "password_confirmation", templ.Attributes{"required": true})
+								<p x-show="fieldError('password_confirmation')" x-cloak x-text="fieldError('password_confirmation')" class="mt-1.5 text-sm font-medium text-error" role="alert"></p>
+							</div>
+						</div>
+					</div>
+					<div class="flex items-center justify-between gap-2 pt-2">
+						<button type="button" x-show="step > 1" x-cloak @click="step--" class="btn-secondary">Back</button>
+						<div class="flex justify-end">
+							<button type="button" x-show="step < 2" x-cloak @click="attemptStep(step)" class="btn-primary">Next</button>
+							<button type="submit" x-show="step === 2" x-cloak class="btn-primary">Register</button>
+						</div>
+					</div>
+				</form>
+				<div class="mt-6 border-t border-gray-200 pt-4 text-center dark:border-gray-700">
+					<span class="text-sm text-gray-600 dark:text-gray-400">Already registered?</span>
+					<a href="/login" class="text-sm text-indigo-600 hover:text-indigo-500">Sign in</a>
+				</div>
+			}
+		</div>
 	}
 }
