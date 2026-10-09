@@ -2,7 +2,7 @@
 
 Go port of the Laravel app in `reference/` (git submodule — source of truth for
 original behavior, schema, and content). This repo is the port; never invent
-behavior here that `reference/` doesn't have.
+behavior here that `reference/` doesn't have. Do not edit `reference/`
 
 ## Architecture
 
@@ -57,4 +57,5 @@ cmd/baaku/           web server entrypoint (router, handler wiring)
 cmd/migrate/         goose migration CLI
 reference/           Laravel app (git submodule — source of truth)
 ```
+
 ```
