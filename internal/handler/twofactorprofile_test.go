@@ -11,9 +11,13 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/shuvo-paul/baaku/internal/config"
 	"github.com/shuvo-paul/baaku/internal/database/queries/generated"
 	"github.com/shuvo-paul/baaku/internal/handler"
 	"github.com/shuvo-paul/baaku/internal/middleware"
+	"github.com/shuvo-paul/baaku/internal/repository/profile"
+	"github.com/shuvo-paul/baaku/internal/service/career"
+	"github.com/shuvo-paul/baaku/internal/service/education"
 	"github.com/shuvo-paul/baaku/internal/service/twofactor"
 	"github.com/shuvo-paul/baaku/internal/service/user"
 )
@@ -63,9 +67,28 @@ func sessionRow(id string, payload string) generated.Session {
 	return generated.Session{ID: id, UserID: &uid, Payload: payload}
 }
 
+// stubs for the profile page's wave-2 data loaders (2FA tests don't exercise
+// these tabs).
+type stubProfiles struct{}
+
+func (stubProfiles) Get(_ context.Context, _ int64) (profile.Profile, error) {
+	return profile.Profile{SocialLinks: map[string]string{}, EmergencyContact: map[string]string{}, LocalNames: map[string]string{}}, nil
+}
+
+type stubEducations struct{}
+
+func (stubEducations) List(_ context.Context, _ int64) ([]education.Education, error) {
+	return nil, nil
+}
+
+type stubCareers struct{}
+
+func (stubCareers) List(_ context.Context, _ int64) ([]career.Career, error) { return nil, nil }
+
+func testProfileCfg() *config.Config { return &config.Config{} }
 func twoFactorRouter(svc *fakeTwoFactor, store *fakeSessions) http.Handler {
 	tfs := handler.NewTwoFactorSettings(svc)
-	profp := handler.NewProfilePage(svc, "Baaku")
+	profp := handler.NewProfilePage(svc, &stubProfiles{}, &stubEducations{}, &stubCareers{}, testProfileCfg(), "Baaku")
 	r := chi.NewRouter()
 	r.Use(middleware.Session(testCookie, store))
 	r.Use(middleware.CSRF(csrfKey))

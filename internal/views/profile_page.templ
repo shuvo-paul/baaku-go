@@ -1,16 +1,35 @@
 package views
 
-import "strings"
+import (
+	"strconv"
+	"strings"
+)
 
-// ProfilePage mirrors the security tab of reference profile/show.blade.php
-// (the updatePasswords and twoFactorAuthentication cards) — the details/
-// education/career tabs land in later waves. The 2FA section is flash-driven
-// exactly like the reference blade. Labels are the reference lang/en/auth.php
-// strings (English-literals stance, see generate.go).
+// ProfilePageData carries everything the four-tab profile page renders.
+type ProfilePageData struct {
+	AppName   string
+	CSRFToken string
+	Sidebar   SidebarData
+	User      ProfileUser
+	Profile   ProfileData
+	LocalNames []LocalNameField
+	Educations []EducationView
+	Careers    []CareerView
+	EmploymentTypes []Option
+	Levels       []string
+	Institutions []string
+	Subjects     []string
+	// Flash
+	Status      string
+	ErrMsg      string
+	// 2FA
+	Confirmation string
+	RecoveryCodes string
+	SetupKey     string
+}
 
 // profileStatusText maps the reference session('status') values to their
-// success messages; two-factor-recovery-codes-generated is silent in the
-// reference too.
+// success messages; two-factor-recovery-codes-generated is silent too.
 func profileStatusText(status string) string {
 	switch status {
 	case "password-updated":
@@ -19,76 +38,290 @@ func profileStatusText(status string) string {
 		return "Two-factor authentication has been enabled."
 	case "two-factor-authentication-confirmed":
 		return "Two-factor authentication has been confirmed."
+	case "profile-details-updated":
+		return "Profile details updated."
+	case "education-created":
+		return "Education added."
+	case "education-updated":
+		return "Education updated."
+	case "education-deleted":
+		return "Education deleted."
+	case "career-created":
+		return "Career added."
+	case "career-updated":
+		return "Career updated."
+	case "career-deleted":
+		return "Career deleted."
 	}
 	return ""
 }
 
-templ ProfilePage(appName, csrfToken, status, confirmation, recoveryCodes, errMsg, setupKey string) {
-	@Layout(appName) {
-		@Card("Profile") {
-			@StatusText(profileStatusText(status))
-			<h2 class="mt-6 text-lg font-semibold text-gray-900 dark:text-white">Update Password</h2>
-			@ErrText(errMsg)
-			<form method="POST" action="/user/password" class="mt-4 space-y-4">
-				@CSRFToken(csrfToken)
-				<input type="hidden" name="_method" value="PUT"/>
-				@PasswordInput("Current password", "current_password", templ.Attributes{"autofocus": true})
-				@PasswordInput("Password", "password", nil)
-				@PasswordInput("Confirm password", "password_confirmation", nil)
-				@SubmitButton("Save")
-			</form>
-			<h2 class="mt-6 text-lg font-semibold text-gray-900 dark:text-white">Two-Factor Authentication</h2>
-			if status == "two-factor-authentication-enabled" {
-				if confirmation == "required" {
-					<p class="mt-4 text-sm text-gray-600 dark:text-gray-400">
-						Scan the QR code with your authenticator app and enter the code below to confirm two-factor authentication.
-					</p>
-					<div class="mt-4 flex justify-center">
-						<img src="/user/two-factor-qr-code" alt="Two factor authentication QR code" class="h-48 w-48"/>
-					</div>
-					<p class="mt-4 text-sm text-gray-600 dark:text-gray-400">
-						Setup Key:
-						<code class="rounded bg-gray-100 px-2 py-1 dark:bg-gray-700">{ setupKey }</code>
-					</p>
-					<form method="POST" action="/user/confirmed-two-factor-authentication" class="mt-4 space-y-4">
-						@CSRFToken(csrfToken)
-						@TextInput("Authentication Code", "code", "text", templ.Attributes{"inputmode": "numeric", "autofocus": true})
-						@SubmitButton("Confirm")
-					</form>
-				}
-				if recoveryCodes != "" {
-					<p class="mt-4 text-sm text-gray-600 dark:text-gray-400">
-						Store these recovery codes in a secure password manager. They can be used to recover access to your account if your two-factor authentication device is lost.
-					</p>
-					<div class="mt-2 rounded-md bg-gray-100 p-4 dark:bg-gray-700">
-						for _, code := range strings.Split(recoveryCodes, "\n") {
-							<code class="block text-sm">{ code }</code>
-						}
-					</div>
-				}
+templ ProfilePage(d ProfilePageData) {
+	@DashboardLayout(d.Sidebar) {
+		<div class="space-y-6">
+			<div class="card p-6 text-center">
+				<h1 class="text-2xl font-bold text-navy">Profile</h1>
+			</div>
+			<div x-data="{ tab: 'profile' }" x-init="tab = ['profile','education','career','security'].includes((location.hash || '#profile').slice(1)) ? (location.hash || '#profile').slice(1) : 'profile'" x-on:hashchange.window="tab = ['profile','education','career','security'].includes((location.hash || '#profile').slice(1)) ? (location.hash || '#profile').slice(1) : tab">
+			<nav role="tablist" aria-label="Profile" class="mb-6 flex gap-1 border-b border-outline-variant/60">
+				<a href="#profile" id="tab-profile" role="tab" aria-controls="profile" x-on:click="tab = 'profile'" :aria-selected="tab === 'profile'" :tabindex="tab === 'profile' ? 0 : -1" :class="tab === 'profile' ? 'text-navy border-gold' : 'text-on-surface-variant hover:text-navy border-transparent'" class="border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors">Profile</a>
+				<a href="#education" id="tab-education" role="tab" aria-controls="education" x-on:click="tab = 'education'" :aria-selected="tab === 'education'" :tabindex="tab === 'education' ? 0 : -1" :class="tab === 'education' ? 'text-navy border-gold' : 'text-on-surface-variant hover:text-navy border-transparent'" class="border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors">Education</a>
+				<a href="#career" id="tab-career" role="tab" aria-controls="career" x-on:click="tab = 'career'" :aria-selected="tab === 'career'" :tabindex="tab === 'career' ? 0 : -1" :class="tab === 'career' ? 'text-navy border-gold' : 'text-on-surface-variant hover:text-navy border-transparent'" class="border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors">Career</a>
+				<a href="#security" id="tab-security" role="tab" aria-controls="security" x-on:click="tab = 'security'" :aria-selected="tab === 'security'" :tabindex="tab === 'security' ? 0 : -1" :class="tab === 'security' ? 'text-navy border-gold' : 'text-on-surface-variant hover:text-navy border-transparent'" class="border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors">Security</a>
+			</nav>
+			@profileDetailsTab(d)
+			@profileEducationTab(d)
+			@profileCareerTab(d)
+			@profileSecurityTab(d)
+			</div>
+			<div class="text-center">
+				<a href="/dashboard" class="text-sm text-navy hover:text-gold">Back to dashboard</a>
+			</div>
+		</div>
+	}
+}
+
+templ profileDetailsTab(d ProfilePageData) {
+	<section id="profile" role="tabpanel" aria-labelledby="tab-profile" x-show="tab === 'profile'" x-cloak class="card p-6">
+		if d.Status == "profile-details-updated" {
+			@StatusText("Profile details updated.")
+		}
+		@ErrText(d.ErrMsg)
+		<form method="POST" action="/dashboard/profile/details" enctype="multipart/form-data" class="mt-4 space-y-4">
+			@CSRFToken(d.CSRFToken)
+			<input type="hidden" name="_method" value="PUT"/>
+			<div class="grid grid-cols-2 gap-4">
+				@TextInput("Name", "name", "text", templ.Attributes{"value": d.User.Name, "required": true})
+				@TextInput("Email", "email", "email", templ.Attributes{"value": d.User.Email, "required": true})
+			</div>
+			@TextInput("Phone", "phone", "tel", templ.Attributes{"value": d.User.Phone, "required": true})
+			<div>
+				<span class="block text-sm font-medium text-on-surface-variant">Photo</span>
+				@PhotoCropper("photo", "Choose photo", d.Profile.PhotoURL, initials(d.User.Name), "h-32 w-32", "")
+			</div>
+			for _, ln := range d.LocalNames {
+				@OptionalInput(ln.Label, "local_names."+ln.Code, "text", templ.Attributes{"value": ln.Value, "required": ln.Required})
 			}
-			if status == "two-factor-authentication-confirmed" {
-				<div class="mt-4 flex space-x-4">
-					<form method="POST" action="/user/two-factor-authentication">
-						@CSRFToken(csrfToken)
-						<input type="hidden" name="_method" value="DELETE"/>
-						@DangerSubmitButton("Disable Two-Factor Authentication")
-					</form>
-					<form method="POST" action="/user/two-factor-recovery-codes">
-						@CSRFToken(csrfToken)
-						@OutlineSubmitButton("Regenerate Recovery Codes")
-					</form>
+			<div class="grid grid-cols-3 gap-4">
+				@OptionalInput("Date of birth", "date_of_birth", "date", templ.Attributes{"value": d.Profile.DateOfBirth})
+				@SelectWithBlank("Gender", "gender", GenderOptions(), d.Profile.Gender)
+				@SelectWithBlank("Blood group", "blood_group", BloodGroupOptions(), d.Profile.BloodGroup)
+			</div>
+			<div class="grid grid-cols-2 gap-4">
+				@TextInput("Present address", "present_address", "text", templ.Attributes{"value": d.Profile.PresentAddress, "required": true})
+				@TextInput("Permanent address", "permanent_address", "text", templ.Attributes{"value": d.Profile.PermanentAddress, "required": true})
+			</div>
+			<div class="space-y-4">
+				<span class="block text-sm font-medium text-gray-700 dark:text-gray-300">Social links</span>
+				@OptionalInput("Facebook", "social_links.facebook", "url", templ.Attributes{"value": d.Profile.SocialLinks["facebook"]})
+				@OptionalInput("LinkedIn", "social_links.linkedin", "url", templ.Attributes{"value": d.Profile.SocialLinks["linkedin"]})
+				@OptionalInput("Website", "website", "url", templ.Attributes{"value": d.Profile.Website})
+			</div>
+			<div class="space-y-4">
+				<span class="block text-sm font-medium text-gray-700 dark:text-gray-300">Emergency contact</span>
+				<div class="grid grid-cols-2 gap-4">
+					@OptionalInput("Name", "emergency_contact.name", "text", templ.Attributes{"value": d.Profile.EmergencyContact["name"]})
+					@OptionalInput("Phone", "emergency_contact.phone", "text", templ.Attributes{"value": d.Profile.EmergencyContact["phone"]})
 				</div>
-			}
-			if status == "" || (status != "two-factor-authentication-enabled" && status != "two-factor-authentication-confirmed") {
-				<form method="POST" action="/user/two-factor-authentication" class="mt-4">
-					@CSRFToken(csrfToken)
-					@SubmitButton("Enable Two-Factor Authentication")
-				</form>
-			}
-			<div class="mt-6 text-center">
-				<a href="/dashboard" class="text-sm text-indigo-600 hover:text-indigo-500">Back to dashboard</a>
+				@OptionalInput("Relation", "emergency_contact.relation", "text", templ.Attributes{"value": d.Profile.EmergencyContact["relation"]})
+			</div>
+			@SubmitButton("Save")
+		</form>
+	</section>
+}
+
+templ profileEducationTab(d ProfilePageData) {
+	<section id="education" role="tabpanel" aria-labelledby="tab-education" x-show="tab === 'education'" x-cloak>
+		<div class="flex items-center justify-between">
+			<h2 class="text-lg font-semibold text-navy">Educations</h2>
+			<a href="/dashboard/profile/educations/create" class="btn-primary">Add education</a>
+		</div>
+		if len(d.Educations) == 0 {
+			<div class="card mt-4 p-6">
+				<p class="text-sm text-on-surface-variant">No educations added yet.</p>
+				<a href="/dashboard/profile/educations/create" class="btn-secondary mt-3 inline-flex">Add education</a>
 			</div>
 		}
+		for _, e := range d.Educations {
+			<div class="card mt-4 p-4">
+				<div class="flex items-start justify-between gap-4">
+					<div>
+						<p class="label-caps text-gold">{ educationYears(e) }</p>
+						<h3 class="mt-1 font-serif text-lg font-semibold text-navy">{ e.Institution }</h3>
+						<p class="mt-0.5 text-sm text-on-surface-variant">{ educationLevelSubject(e) }</p>
+					</div>
+					<div class="flex shrink-0 items-center gap-3 text-sm">
+						<a href={ templ.URL("/dashboard/profile/educations/" + idPath(e.ID) + "/edit") } class="text-navy hover:text-gold">Edit</a>
+						<form method="POST" action={ templ.URL("/dashboard/profile/educations/" + idPath(e.ID)) } class="inline" onsubmit="return confirm('Delete this education?')">
+							@CSRFToken(d.CSRFToken)
+							<input type="hidden" name="_method" value="DELETE"/>
+							<button type="submit" class="text-red-600 hover:text-red-900">Delete</button>
+						</form>
+					</div>
+				</div>
+			</div>
+		}
+	</section>
+}
+
+templ profileCareerTab(d ProfilePageData) {
+	<section id="career" role="tabpanel" aria-labelledby="tab-career" x-show="tab === 'career'" x-cloak>
+		<div class="flex items-center justify-between">
+			<h2 class="text-lg font-semibold text-navy">Careers</h2>
+			<a href="/dashboard/profile/careers/create" class="btn-primary">Add career</a>
+		</div>
+		if len(d.Careers) == 0 {
+			<div class="card mt-4 p-6">
+				<p class="text-sm text-on-surface-variant">No careers added yet.</p>
+				<a href="/dashboard/profile/careers/create" class="btn-secondary mt-3 inline-flex">Add career</a>
+			</div>
+		}
+		for _, c := range d.Careers {
+			<div class="card mt-4 p-4">
+				<div class="flex items-start justify-between gap-4">
+					<div>
+						<p class="label-caps text-gold">{ careerYears(c) }</p>
+						<div class="mt-1 flex items-center gap-2">
+							<h3 class="font-serif text-lg font-semibold text-navy">{ c.JobTitle }</h3>
+							<span class="rounded bg-surface-container px-2 py-0.5 text-xs font-medium text-navy">{ employmentLabel(c.EmploymentType, d.EmploymentTypes) }</span>
+						</div>
+						<p class="mt-0.5 text-sm text-on-surface-variant">{ c.Company }</p>
+						if c.Industry != "" || c.Location != "" {
+							<p class="mt-0.5 text-sm text-on-surface-variant">{ joinNonEmpty(c.Industry, c.Location) }</p>
+						}
+						if c.Description != "" {
+							<p class="mt-2 text-sm text-on-surface-variant">{ c.Description }</p>
+						}
+					</div>
+					<div class="flex shrink-0 items-center gap-3 text-sm">
+						<a href={ templ.URL("/dashboard/profile/careers/" + idPath(c.ID) + "/edit") } class="text-navy hover:text-gold">Edit</a>
+						<form method="POST" action={ templ.URL("/dashboard/profile/careers/" + idPath(c.ID)) } class="inline" onsubmit="return confirm('Delete this career?')">
+							@CSRFToken(d.CSRFToken)
+							<input type="hidden" name="_method" value="DELETE"/>
+							<button type="submit" class="text-red-600 hover:text-red-900">Delete</button>
+						</form>
+					</div>
+				</div>
+			</div>
+		}
+	</section>
+}
+
+templ profileSecurityTab(d ProfilePageData) {
+	<section id="security" role="tabpanel" aria-labelledby="tab-security" x-show="tab === 'security'" x-cloak class="card p-6">
+		<h2 class="text-lg font-semibold text-navy">Update Password</h2>
+		@ErrText(d.ErrMsg)
+		<form method="POST" action="/user/password" class="mt-4 space-y-4">
+			@CSRFToken(d.CSRFToken)
+			<input type="hidden" name="_method" value="PUT"/>
+			@PasswordInput("Current password", "current_password", templ.Attributes{"autofocus": true})
+			@PasswordInput("Password", "password", nil)
+			@PasswordInput("Confirm password", "password_confirmation", nil)
+			@SubmitButton("Save")
+		</form>
+		<h2 class="mt-6 text-lg font-semibold text-navy">Two-Factor Authentication</h2>
+		if d.Status == "two-factor-authentication-enabled" {
+			if d.Confirmation == "required" {
+				<p class="mt-4 text-sm text-on-surface-variant">Scan the QR code with your authenticator app and enter the code below to confirm two-factor authentication.</p>
+				<div class="mt-4 flex justify-center">
+					<img src="/user/two-factor-qr-code" alt="Two factor authentication QR code" class="h-48 w-48"/>
+				</div>
+				<p class="mt-4 text-sm text-on-surface-variant">Setup Key: <code class="rounded bg-surface-container px-2 py-1">{ d.SetupKey }</code></p>
+				<form method="POST" action="/user/confirmed-two-factor-authentication" class="mt-4 space-y-4">
+					@CSRFToken(d.CSRFToken)
+					@TextInput("Authentication Code", "code", "text", templ.Attributes{"inputmode": "numeric", "autofocus": true})
+					@SubmitButton("Confirm")
+				</form>
+			}
+			if d.RecoveryCodes != "" {
+				<p class="mt-4 text-sm text-on-surface-variant">Store these recovery codes in a secure password manager.</p>
+				<div class="mt-2 rounded-md bg-surface-container p-4">
+					for _, code := range strings.Split(d.RecoveryCodes, "\n") {
+						<code class="block text-sm">{ code }</code>
+					}
+				</div>
+			}
+		}
+		if d.Status == "two-factor-authentication-confirmed" {
+			<div class="mt-4 flex space-x-4">
+				<form method="POST" action="/user/two-factor-authentication">
+					@CSRFToken(d.CSRFToken)
+					<input type="hidden" name="_method" value="DELETE"/>
+					@DangerSubmitButton("Disable Two-Factor Authentication")
+				</form>
+				<form method="POST" action="/user/two-factor-recovery-codes">
+					@CSRFToken(d.CSRFToken)
+					@OutlineSubmitButton("Regenerate Recovery Codes")
+				</form>
+			</div>
+		}
+		if d.Status == "" || (d.Status != "two-factor-authentication-enabled" && d.Status != "two-factor-authentication-confirmed") {
+			<form method="POST" action="/user/two-factor-authentication" class="mt-4">
+				@CSRFToken(d.CSRFToken)
+				@SubmitButton("Enable Two-Factor Authentication")
+			</form>
+		}
+	</section>
+}
+
+func educationYears(e EducationView) string {
+	if e.StartYear == 0 {
+		return ""
 	}
+	if e.IsCurrent || e.EndYear == 0 {
+		return fmtYear(e.StartYear) + " — Present"
+	}
+	return fmtYear(e.StartYear) + " — " + fmtYear(e.EndYear)
+}
+
+func educationLevelSubject(e EducationView) string {
+	if e.Subject == "" {
+		return e.Level
+	}
+	if e.Level == "" {
+		return e.Subject
+	}
+	return e.Level + " · " + e.Subject
+}
+
+func careerYears(c CareerView) string {
+	s := fmtYear(c.StartYear)
+	if c.IsCurrent {
+		return s + " — Present"
+	}
+	if c.EndYear == 0 {
+		return s + " — —"
+	}
+	return s + " — " + fmtYear(c.EndYear)
+}
+
+func employmentLabel(v string, opts []Option) string {
+	for _, o := range opts {
+		if o.Value == v {
+			return o.Label
+		}
+	}
+	return v
+}
+
+func joinNonEmpty(parts ...string) string {
+	var out []string
+	for _, p := range parts {
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return strings.Join(out, " · ")
+}
+
+func fmtYear(y int32) string {
+	if y == 0 {
+		return ""
+	}
+	return strconv.FormatInt(int64(y), 10)
+}
+
+// idPath renders an int64 route segment.
+func idPath(id int64) string {
+	return strconv.FormatInt(id, 10)
 }

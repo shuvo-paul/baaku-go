@@ -1,0 +1,119 @@
+package views
+
+// EducationForm is the create/edit education form (reference
+// profile/educations/create + edit blade). An empty ID means create.
+type EducationForm struct {
+	AppName   string
+	CSRFToken string
+	Sidebar   SidebarData
+	ID        int64
+	Values    EducationView
+	Levels       []string
+	Institutions []string
+	Subjects     []string
+	ErrMsg    string
+}
+
+templ EducationFormPage(f EducationForm) {
+	@DashboardLayout(f.Sidebar) {
+		<div class="card p-6">
+			if f.ID == 0 {
+				<h1 class="text-2xl font-bold text-navy">Add education</h1>
+			} else {
+				<h1 class="text-2xl font-bold text-navy">Update education</h1>
+			}
+			@ErrText(f.ErrMsg)
+			<form method="POST" action={ educationAction(f.ID) } class="mt-4 space-y-4">
+				@CSRFToken(f.CSRFToken)
+				if f.ID != 0 {
+					<input type="hidden" name="_method" value="PUT"/>
+				}
+				@SuggestInput("Level", "level", f.Values.Level, f.Levels, true, nil)
+				@SuggestInput("Institution", "institution", f.Values.Institution, f.Institutions, true, nil)
+				@SuggestInput("Subject", "subject", f.Values.Subject, f.Subjects, true, nil)
+				@OptionalInput("Student ID", "student_id", "text", templ.Attributes{"value": f.Values.StudentID})
+				<div class="grid grid-cols-2 gap-4">
+					@YearSelect("Start year", "start_year", f.Values.StartYear, true)
+					@MonthSelect("Start month", "start_month", f.Values.StartMonth)
+				</div>
+				@Checkbox("Currently studying", "is_current", f.Values.IsCurrent, nil)
+				if !f.Values.IsCurrent {
+					<div class="grid grid-cols-2 gap-4">
+						@YearSelect("End year", "end_year", f.Values.EndYear, false)
+						@MonthSelect("End month", "end_month", f.Values.EndMonth)
+					</div>
+				}
+				<div class="mt-6 flex items-center gap-4">
+					@SubmitButton("Save")
+					<a href="/dashboard/profile#education" class="text-sm text-navy hover:text-gold">Back to profile</a>
+				</div>
+			</form>
+		</div>
+	}
+}
+
+func educationAction(id int64) string {
+	if id == 0 {
+		return "/dashboard/profile/educations"
+	}
+	return "/dashboard/profile/educations/" + idPath(id)
+}
+
+// CareerForm is the create/edit career form (reference profile/careers/create
+// + edit blade). An empty ID means create.
+type CareerForm struct {
+	AppName   string
+	CSRFToken string
+	Sidebar   SidebarData
+	ID        int64
+	Values    CareerView
+	EmploymentTypes []Option
+	ErrMsg    string
+}
+
+templ CareerFormPage(f CareerForm) {
+	@DashboardLayout(f.Sidebar) {
+		<div class="card p-6">
+			if f.ID == 0 {
+				<h1 class="text-2xl font-bold text-navy">Add career</h1>
+			} else {
+				<h1 class="text-2xl font-bold text-navy">Update career</h1>
+			}
+			@ErrText(f.ErrMsg)
+			<form method="POST" action={ careerAction(f.ID) } class="mt-4 space-y-4">
+				@CSRFToken(f.CSRFToken)
+				if f.ID != 0 {
+					<input type="hidden" name="_method" value="PUT"/>
+				}
+				@SelectWithBlank("Employment type", "employment_type", f.EmploymentTypes, f.Values.EmploymentType)
+				@TextInput("Job title", "job_title", "text", templ.Attributes{"value": f.Values.JobTitle, "required": true})
+				@TextInput("Company", "company", "text", templ.Attributes{"value": f.Values.Company, "required": true})
+				@OptionalInput("Industry", "industry", "text", templ.Attributes{"value": f.Values.Industry})
+				@OptionalInput("Location", "location", "text", templ.Attributes{"value": f.Values.Location})
+				<div class="grid grid-cols-2 gap-4">
+					@YearSelect("Start year", "start_year", f.Values.StartYear, true)
+					@MonthSelect("Start month", "start_month", f.Values.StartMonth)
+				</div>
+				@Checkbox("Currently working", "is_current", f.Values.IsCurrent, nil)
+				if !f.Values.IsCurrent {
+					<div class="grid grid-cols-2 gap-4">
+						@YearSelect("End year", "end_year", f.Values.EndYear, false)
+						@MonthSelect("End month", "end_month", f.Values.EndMonth)
+					</div>
+				}
+				@OptionalTextarea("Description", "description", f.Values.Description)
+				<div class="mt-6 flex items-center gap-4">
+					@SubmitButton("Save")
+					<a href="/dashboard/profile#career" class="text-sm text-navy hover:text-gold">Back to profile</a>
+				</div>
+			</form>
+		</div>
+	}
+}
+
+func careerAction(id int64) string {
+	if id == 0 {
+		return "/dashboard/profile/careers"
+	}
+	return "/dashboard/profile/careers/" + idPath(id)
+}

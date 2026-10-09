@@ -15,13 +15,13 @@ templ Card(title string) {
 // always required. attrs carries extras (autofocus, value, autocomplete,
 // inputmode); pass nil when there are none.
 templ TextInput(label, name, typ string, attrs templ.Attributes) {
-	<label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+	<label class="block text-sm font-medium text-on-surface-variant">
 		{ label }
 		<input
 			type={ typ }
 			name={ name }
 			required
-			class="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+			class="field-input"
 			{ attrs... }
 		/>
 	</label>
@@ -34,12 +34,12 @@ templ PasswordInput(label, name string, attrs templ.Attributes) {
 
 // OptionalInput is TextInput without the required attribute (nullable fields).
 templ OptionalInput(label, name, typ string, attrs templ.Attributes) {
-	<label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+	<label class="block text-sm font-medium text-on-surface-variant">
 		{ label }
 		<input
 			type={ typ }
 			name={ name }
-			class="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+			class="field-input"
 			{ attrs... }
 		/>
 	</label>
@@ -53,12 +53,12 @@ type Option struct {
 
 // Select mirrors reference x-select: label on top, always required.
 templ Select(label, name string, options []Option, attrs templ.Attributes) {
-	<label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+	<label class="block text-sm font-medium text-on-surface-variant">
 		{ label }
 		<select
 			name={ name }
 			required
-			class="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+			class="field-input"
 			{ attrs... }
 		>
 			for _, o := range options {
@@ -71,33 +71,237 @@ templ Select(label, name string, options []Option, attrs templ.Attributes) {
 // ErrText is the inline red error paragraph (login.templ pattern).
 templ ErrText(msg string) {
 	if msg != "" {
-		<p class="mt-1.5 text-sm font-medium text-red-600" role="alert">{ msg }</p>
+		<p class="mt-1.5 text-sm font-medium text-error" role="alert">{ msg }</p>
 	}
 }
 
 // StatusText is the green success banner (Laravel session('status')).
 templ StatusText(msg string) {
 	if msg != "" {
-		<p class="rounded-md bg-green-50 p-3 text-sm text-green-700 dark:bg-green-900/30 dark:text-green-400" role="status">{ msg }</p>
+		<p class="rounded-md bg-emerald-800/5 p-3 text-sm text-emerald-800" role="status">{ msg }</p>
 	}
 }
 
 templ SubmitButton(text string) {
-	<button type="submit" class="w-full rounded-md bg-indigo-600 px-4 py-2 font-semibold text-white hover:bg-indigo-500">{ text }</button>
+	<button type="submit" class="btn-primary">{ text }</button>
 }
 
 templ OutlineSubmitButton(text string) {
-	<button type="submit" class="w-full rounded-md border border-gray-300 px-4 py-2 font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300">{ text }</button>
+	<button type="submit" class="btn-secondary">{ text }</button>
 }
 
 // DangerSubmitButton is the red destructive submit (reference x-button
 // color="red").
 templ DangerSubmitButton(text string) {
-	<button type="submit" class="w-full rounded-md bg-red-600 px-4 py-2 font-semibold text-white hover:bg-red-500">{ text }</button>
+	<button type="submit" class="btn-danger">{ text }</button>
 }
 
 // CSRFToken is the @csrf hidden field; handlers pass the plaintext token
 // (middleware.CSRF accepts it as the _token form proof).
 templ CSRFToken(token string) {
 	<input type="hidden" name="_token" value={ token }/>
+}
+
+
+// Checkbox is the labelled boolean input (reference x-form.checkbox).
+templ Checkbox(label, name string, checked bool, attrs templ.Attributes) {
+	<label class="flex items-center gap-2 text-sm font-medium text-on-surface-variant">
+		<input
+			type="checkbox"
+			name={ name }
+			value="1"
+			class="rounded border-outline-variant text-navy focus:ring-gold/40"
+			if checked {
+				checked
+			}
+			{ attrs... }
+		/>
+		{ label }
+	</label>
+}
+
+// Textarea is the labelled multi-line input (reference x-form.textarea).
+templ Textarea(label, name string, attrs templ.Attributes) {
+	<label class="block text-sm font-medium text-on-surface-variant">
+		{ label }
+		<textarea
+			name={ name }
+			rows="4"
+			class="field-input"
+			{ attrs... }
+		></textarea>
+	</label>
+}
+
+// OptionalTextarea is Textarea without a preset value binding.
+templ OptionalTextarea(label, name, value string) {
+	@Textarea(label, name, templ.Attributes{"value": value})
+}
+
+// SuggestInput is a text input backed by a <datalist> (reference x-suggest):
+// free text with autocomplete suggestions.
+templ SuggestInput(label, name, value string, suggestions []string, required bool, attrs templ.Attributes) {
+	<label class="block text-sm font-medium text-on-surface-variant">
+		{ label }
+		<input
+			type="text"
+			name={ name }
+			list={ name + "-list" }
+			class="field-input"
+			if required {
+				required
+			}
+			value={ value }
+			{ attrs... }
+		/>
+		<datalist id={ name + "-list" }>
+			for _, s := range suggestions {
+				<option value={ s }></option>
+			}
+		</datalist>
+	</label>
+}
+
+
+// YearSelect is the 4-digit year dropdown (reference x-year-select).
+templ YearSelect(label, name string, selected int32, required bool) {
+	<label class="block text-sm font-medium text-on-surface-variant">
+		{ label }
+		<select
+			name={ name }
+			class="field-input"
+			if required {
+				required
+			}
+		>
+			<option value="">—</option>
+			for _, y := range YearOptions(selected) {
+				<option value={ templ.JSONString(y.Value) } if y.Selected { selected }>{ templ.JSONString(y.Value) }</option>
+			}
+		</select>
+	</label>
+}
+
+// MonthSelect is the 1–12 month dropdown (reference x-month-select).
+templ MonthSelect(label, name string, selected int16) {
+	<label class="block text-sm font-medium text-on-surface-variant">
+		{ label }
+		<select
+			name={ name }
+			class="field-input"
+		>
+			<option value="">—</option>
+			for _, m := range MonthOptions(selected) {
+				<option value={ templ.JSONString(m.Value) } if m.Selected { selected }>{ monthName(m.Value) }</option>
+			}
+		</select>
+	</label>
+}
+
+
+// SelectWithBlank is a Select prefixed with an empty "—" option and the
+// current value pre-selected (nullable enum fields on the details form).
+templ SelectWithBlank(label, name string, options []Option, selected string) {
+	<label class="block text-sm font-medium text-on-surface-variant">
+		{ label }
+		<select
+			name={ name }
+			class="field-input"
+		>
+			<option value="">—</option>
+			for _, o := range options {
+				<option value={ o.Value } if o.Value == selected { selected }>{ o.Label }</option>
+			}
+		</select>
+	</label>
+}
+
+
+/*
+PhotoCropper is the dashed photo picker + modal cropper, ported from
+reference/components/photo-cropper.blade.php. The Alpine behaviour lives in
+assets/js/photo-cropper.js (registered as photoCropper). boxClass sizes the
+pick box; initial is the monogram shown when there is no existing photo.
+*/
+templ PhotoCropper(name, chooseLabel, existing, initial, boxClass, errMsg string) {
+	<div x-data="photoCropper" class="inline-block">
+		<span
+			role="button"
+			tabindex="0"
+			aria-label={ chooseLabel }
+			class={ "flex " + boxClass + " cursor-pointer items-center justify-center overflow-hidden rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 hover:border-gray-400 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gold/50" }
+			@click="pick()"
+			@keydown.enter.prevent="pick()"
+			@keydown.space.prevent="pick()"
+		>
+			<template x-if="preview">
+				<img :src="preview" alt="" class="h-full w-full object-cover"/>
+			</template>
+			<template x-if="!preview">
+				if existing != "" {
+					<img src={ existing } alt={ chooseLabel } class="h-full w-full object-cover"/>
+				} else if initial != "" {
+					<span class="flex h-full w-full items-center justify-center font-serif text-2xl font-semibold text-navy">{ initial }</span>
+				} else {
+					<span class="flex flex-col items-center gap-1.5 text-sm text-gray-500">
+						<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-7 w-7">
+							<path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/>
+						</svg>
+						<span>{ chooseLabel }</span>
+					</span>
+				}
+			</template>
+		</span>
+		<input type="file" name={ name } accept="image/*" class="sr-only" x-ref="input" @change="onSelect($event)"/>
+		if errMsg != "" {
+			<p class="mt-1 text-sm text-error" role="alert">{ errMsg }</p>
+		}
+		<div
+			x-show="cropping"
+			x-cloak
+			class="fixed inset-0 z-50 flex items-center justify-center p-4"
+			x-transition:enter="transition ease-out duration-200"
+			x-transition:enter-start="opacity-0"
+			x-transition:enter-end="opacity-100"
+			x-transition:leave="transition ease-in duration-150"
+			x-transition:leave-start="opacity-100"
+			x-transition:leave-end="opacity-0"
+			@keydown.escape.window="cancel()"
+			@click.self="cancel()"
+		>
+			<div class="absolute inset-0 bg-navy/40 backdrop-blur-sm" @click="cancel()" aria-hidden="true"></div>
+			<div
+				class="relative w-full max-w-2xl rounded-lg border border-outline-variant/60 bg-white p-4 shadow-xl"
+				x-transition:enter="transition ease-out duration-200"
+				x-transition:enter-start="opacity-0 scale-95"
+				x-transition:enter-end="opacity-100 scale-100"
+				x-transition:leave="transition ease-in duration-150"
+				x-transition:leave-start="opacity-100 scale-100"
+				x-transition:leave-end="opacity-0 scale-95"
+				@click.stop
+			>
+				<div class="overflow-hidden rounded-lg bg-gray-100">
+					<img x-ref="cropImage" :src="cropSrc" alt="" class="block max-h-[70vh] max-w-full"/>
+				</div>
+				<div class="mt-4 flex items-center justify-between gap-3">
+					<div class="flex gap-1">
+						<button type="button" @click="zoomOut()" aria-label="Zoom out" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-outline-variant bg-surface text-on-surface hover:bg-surface-container focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold">
+							<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-4 w-4">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14"/>
+							</svg>
+						</button>
+						<button type="button" @click="zoomIn()" aria-label="Zoom in" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-outline-variant bg-surface text-on-surface hover:bg-surface-container focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold">
+							<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-4 w-4">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
+							</svg>
+						</button>
+					</div>
+					<div class="flex gap-2">
+						<button type="button" @click="cancel()" class="btn-secondary">Cancel</button>
+						<button type="button" @click="save()" class="btn-primary">Crop</button>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
 }

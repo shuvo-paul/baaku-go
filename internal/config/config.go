@@ -12,14 +12,44 @@ import (
 )
 
 type Config struct {
-	App      App
-	Postgres Postgres
-	Session  Session
-	Mail     Mail
-	Auth     Auth
+	App       App
+	Postgres  Postgres
+	Session   Session
+	Mail      Mail
+	Auth      Auth
+	Features  Features
+	Career    Career
+	Education Education
 	// TODO: GoogleDrive section comes later — add fields here.
 }
 
+// Features mirrors reference/config/features.php, which is hardcoded (not
+// env-driven): posts off, committee + memberships on.
+type Features struct {
+	Posts       bool
+	Committee   bool
+	Memberships bool
+}
+
+// Career mirrors reference/config/career.php (hardcoded).
+type Career struct {
+	// EmploymentTypes maps employment_type value → display label.
+	EmploymentTypes []Option
+}
+
+// Education mirrors reference/config/education.php (hardcoded) — the
+// suggestion lists behind the education form's datalists.
+type Education struct {
+	Levels       []string
+	Institutions []string
+	Subjects     []string
+}
+
+// Option is one select/datalist entry: value + display label.
+type Option struct {
+	Value string
+	Label string
+}
 type Mail struct {
 	Host     string // MAIL_HOST
 	Port     string // MAIL_PORT
@@ -34,6 +64,16 @@ type App struct {
 	Name string
 	Key  string
 	URL  string // APP_URL, base for signed verification links
+	// LocalNames mirrors reference/config/app.php 'local_names' (code →
+	// label + required flag); drives the localized-name fields.
+	LocalNames []LocalName
+}
+
+// LocalName is one configured local-name field (reference app.local_names).
+type LocalName struct {
+	Code     string
+	Label    string
+	Required bool
 }
 
 // KeyBytes returns the decoded APP_KEY (Laravel "base64:" + base64 32 bytes),
@@ -80,9 +120,10 @@ func Load() (*Config, error) {
 		App: App{
 			// reference/.env.example ships the stock Laravel default; real
 			// deployments set APP_NAME/APP_KEY in .env.
-			Name: getenv("APP_NAME", "Laravel"),
-			Key:  getenv("APP_KEY", ""),
-			URL:  getenv("APP_URL", "http://localhost"),
+			Name:       getenv("APP_NAME", "Laravel"),
+			Key:        getenv("APP_KEY", ""),
+			URL:        getenv("APP_URL", "http://localhost"),
+			LocalNames: localNames(),
 		},
 		Postgres: Postgres{
 			Host:     getenv("DB_HOST", "127.0.0.1"),
@@ -112,6 +153,13 @@ func Load() (*Config, error) {
 		Auth: Auth{
 			PasswordTimeout: getenvInt("AUTH_PASSWORD_TIMEOUT", 10800),
 		},
+		Features: Features{
+			Posts:       false,
+			Committee:   true,
+			Memberships: true,
+		},
+		Career:    careerConfig(),
+		Education: educationConfig(),
 	}
 	return cfg, nil
 }

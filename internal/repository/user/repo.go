@@ -87,6 +87,25 @@ func (r *Repo) UpdateState(ctx context.Context, id int64, state user.UserState) 
 	return r.q.UpdateUserState(ctx, generated.UpdateUserStateParams{ID: id, State: string(state)})
 }
 
+// State reads the user's current state (profilereview store).
+func (r *Repo) State(ctx context.Context, id int64) (user.UserState, error) {
+	u, err := r.GetByID(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	return u.State, nil
+}
+
+// UpdateContact sets phone on the user (details form).
+func (r *Repo) UpdateContact(ctx context.Context, id int64, phone *string) error {
+	return r.q.UpdateUserContact(ctx, generated.UpdateUserContactParams{ID: id, Phone: phone})
+}
+
+// SetState writes the user's state (profilereview store).
+func (r *Repo) SetState(ctx context.Context, id int64, state user.UserState) error {
+	return r.UpdateState(ctx, id, state)
+}
+
 // SetPassword also clears remember_token, matching the reference query.
 func (r *Repo) SetPassword(ctx context.Context, id int64, passwordHash string) error {
 	return r.q.UpdateUserPassword(ctx, generated.UpdateUserPasswordParams{ID: id, Password: passwordHash})

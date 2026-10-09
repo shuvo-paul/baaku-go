@@ -16,19 +16,25 @@ import (
 	"github.com/shuvo-paul/baaku/internal/logger"
 	"github.com/shuvo-paul/baaku/internal/mailer"
 	"github.com/shuvo-paul/baaku/internal/middleware"
+	careerrepo "github.com/shuvo-paul/baaku/internal/repository/career"
 	"github.com/shuvo-paul/baaku/internal/repository/confirm"
+	educationrepo "github.com/shuvo-paul/baaku/internal/repository/education"
 	passwordresetrepo "github.com/shuvo-paul/baaku/internal/repository/passwordreset"
 	"github.com/shuvo-paul/baaku/internal/repository/profile"
 	"github.com/shuvo-paul/baaku/internal/repository/session"
 	"github.com/shuvo-paul/baaku/internal/repository/twofactor"
 	"github.com/shuvo-paul/baaku/internal/repository/user"
+	"github.com/shuvo-paul/baaku/internal/service/career"
 	"github.com/shuvo-paul/baaku/internal/service/completeprofile"
+	"github.com/shuvo-paul/baaku/internal/service/education"
 	"github.com/shuvo-paul/baaku/internal/service/emailverify"
 	"github.com/shuvo-paul/baaku/internal/service/login"
 	"github.com/shuvo-paul/baaku/internal/service/passwordchange"
 	"github.com/shuvo-paul/baaku/internal/service/passwordconfirm"
 	"github.com/shuvo-paul/baaku/internal/service/passwordreset"
+	"github.com/shuvo-paul/baaku/internal/service/profiledetails"
 	"github.com/shuvo-paul/baaku/internal/service/profileinfo"
+	"github.com/shuvo-paul/baaku/internal/service/profilereview"
 	"github.com/shuvo-paul/baaku/internal/service/register"
 	tfasvc "github.com/shuvo-paul/baaku/internal/service/twofactor"
 	"github.com/shuvo-paul/baaku/internal/service/twofactorchallenge"
@@ -118,7 +124,17 @@ func main() {
 	proh := handler.NewProfileUpdater(profileinfo.New(users).Update)
 	compH := handler.NewCompleteProfile(completeprofile.New(profRepo), profRepo, cfg.App.Name)
 	tfsH := handler.NewTwoFactorSettings(twofa)
-	profpH := handler.NewProfilePage(twofa, cfg.App.Name)
+	// Wave 2: profile details + education/career CRUD.
+	educationRepo := educationrepo.NewRepo(q)
+	careerRepo := careerrepo.NewRepo(q)
+	review := profilereview.New(users)
+	educationSvc := education.New(educationRepo, review)
+	careerSvc := career.New(careerRepo, review)
+	profileDetailsSvc := profiledetails.New(users, profRepo, review)
+	peh := handler.NewProfileEducation(educationSvc, cfg, cfg.App.Name)
+	pch := handler.NewProfileCareer(careerSvc, cfg, cfg.App.Name)
+	pdh := handler.NewProfileDetails(profileDetailsSvc, cfg, cfg.App.Name)
+	profpH := handler.NewProfilePage(twofa, profRepo, educationRepo, careerRepo, cfg, cfg.App.Name)
 	r := chi.NewRouter()
 	r.Use(middleware.Session(cfg.Session.Cookie, sessStore))
 	r.Use(middleware.Remember(cfg.Session, key, users, sessStore))
@@ -163,8 +179,27 @@ func main() {
 	// Profile page (reference dashboard/profile: auth + verified +
 	// complete-profile.check + user.suspended) — security tab only for now;
 	// details/educations/careers tabs land in later waves.
-	r.With(authMW, middleware.RequireVerified, middleware.CompleteProfileCheck(profRepo), middleware.CheckUserSuspended).Get("/dashboard/profile", profpH.Show)
+	profileMW := []func(http.Handler) http.Handler{authMW, middleware.RequireVerified, middleware.CompleteProfileCheck(profRepo), middleware.CheckUserSuspended}
+	r.With(profileMW...).Get("/dashboard/profile", profpH.Show)
 
+	// Wave 2 routes (reference routes/dashboard.php profile group): details
+	// update + user-owned education/career CRUD, all behind the same guards.
+	r.With(profileMW...).Put("/dashboard/profile/details", pdh.Update)
+	r.With(profileMW...).Get("/dashboard/profile/educations/create", peh.Create)
+	r.With(profileMW...).Post("/dashboard/profile/educations", peh.Store)
+	r.With(profileMW...).Get("/dashboard/profile/educations/{id}/edit", peh.Edit)
+	r.With(profileMW...).Put("/dashboard/profile/educations/{id}", peh.Update)
+	r.With(profileMW...).Delete("/dashboard/profile/educations/{id}", peh.Destroy)
+	r.With(profileMW...).Get("/dashboard/profile/careers/create", pch.Create)
+	r.With(profileMW...).Post("/dashboard/profile/careers", pch.Store)
+	r.With(profileMW...).Get("/dashboard/profile/careers/{id}/edit", pch.Edit)
+	r.With(profileMW...).Put("/dashboard/profile/careers/{id}", pch.Update)
+	r.With(profileMW...).Delete("/dashboard/profile/careers/{id}", pch.Destroy)
+
+	// Profile photos streamed from the public disk (reference
+	// MediaController@profilePhoto — no storage:link required).
+	mediaH := handler.NewMediaProfilePhoto()
+	r.Get("/media/profile-photos/{file}", mediaH.Show)
 	// Two-factor management (Fortify twoFactorAuthentication with
 	// confirmPassword => true): every route behind auth + password.confirm.
 	tfmw := r.With(authMW, middleware.RequirePasswordConfirmation(confirmRepo))

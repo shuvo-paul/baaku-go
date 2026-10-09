@@ -69,6 +69,20 @@
         @apply inline-flex items-center justify-center rounded border border-navy px-4 py-2 text-sm font-semibold text-navy transition-colors hover:bg-navy hover:text-white focus-visible:ring-2 focus-visible:ring-gold/50;
     }
 
+    /* Danger button: the reference x-button color="red" destructive action. */
+    .btn-danger {
+        @apply inline-flex items-center justify-center rounded bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 focus-visible:ring-2 focus-visible:ring-red-500/50;
+    }
+
+    /*
+     * Text-like form control (input/select/textarea). The reference delegates
+     * this chrome to TallStackUI (no Go port), so we recreate it against the
+     * heritage tokens: outline-variant border, Oxford Navy focus, gold ring.
+     */
+    .field-input {
+        @apply w-full rounded-md border border-outline-variant bg-white px-3 py-2 text-sm text-on-surface shadow-sm transition-colors placeholder:text-on-surface-variant/70 focus:border-navy focus:outline-none focus:ring-2 focus:ring-gold/40 dark:border-outline-variant dark:bg-surface-container dark:text-on-surface;
+    }
+
     /*
      * Publish toggle — inspired by uiverse.io/vinodjangid07/moody-rabbit-65.
      * Pill track with a white circle thumb; Academy Gold when checked.

@@ -4,10 +4,18 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"path/filepath"
 	"strings"
 
+	"github.com/jackc/pgx/v5"
+
+	"github.com/shuvo-paul/baaku/internal/config"
 	"github.com/shuvo-paul/baaku/internal/middleware"
+	"github.com/shuvo-paul/baaku/internal/repository/profile"
+	"github.com/shuvo-paul/baaku/internal/service/career"
+	"github.com/shuvo-paul/baaku/internal/service/education"
 	"github.com/shuvo-paul/baaku/internal/service/twofactor"
+	"github.com/shuvo-paul/baaku/internal/service/user"
 	"github.com/shuvo-paul/baaku/internal/views"
 )
 
@@ -143,40 +151,172 @@ func (h *TwoFactorSettings) Regenerate(w http.ResponseWriter, r *http.Request) {
 	middleware.RedirectWithFlash(w, r, backURL(r), "status", RecoveryCodesGenerated)
 }
 
-// ProfilePage renders GET /dashboard/profile (reference ProfileController +
-// the security tab of profile/show.blade.php: the updatePasswords and
-// twoFactorAuthentication cards; details/educations/careers tabs land in
-// later waves).
-type ProfilePage struct {
-	svc     TwoFactorService
-	appName string
+// ProfileLoader reads the full profile row for the details tab.
+type ProfileLoader interface {
+	Get(ctx context.Context, userID int64) (profile.Profile, error)
 }
 
-func NewProfilePage(svc TwoFactorService, appName string) *ProfilePage {
-	return &ProfilePage{svc: svc, appName: appName}
+// EducationLister lists the user's educations.
+type EducationLister interface {
+	List(ctx context.Context, userID int64) ([]education.Education, error)
+}
+
+// CareerLister lists the user's careers.
+type CareerLister interface {
+	List(ctx context.Context, userID int64) ([]career.Career, error)
+}
+
+// ProfilePage renders GET /dashboard/profile (reference ProfileController +
+// profile/show.blade.php: details, education, career and security tabs).
+type ProfilePage struct {
+	svc        TwoFactorService
+	profiles   ProfileLoader
+	educations EducationLister
+	careers    CareerLister
+	cfg        *config.Config
+	appName    string
+}
+
+func NewProfilePage(svc TwoFactorService, profiles ProfileLoader, educations EducationLister, careers CareerLister, cfg *config.Config, appName string) *ProfilePage {
+	return &ProfilePage{svc: svc, profiles: profiles, educations: educations, careers: careers, cfg: cfg, appName: appName}
 }
 
 // Show renders the page. The 2FA section is flash-driven exactly like the
-// reference blade: enable/confirm flashes carry the one-time display state;
-// the setup key is read from the user row (the reference decrypts it during
-// render).
+// reference blade; the details/education/career tabs load their rows fresh.
 func (h *ProfilePage) Show(w http.ResponseWriter, r *http.Request) {
 	u, ok := middleware.UserFromContext(r.Context())
 	if !ok {
 		middleware.Redirect(w, r, middleware.LoginPath)
 		return
 	}
+	ctx := r.Context()
 	flash := middleware.FlashFromContext(r.Context())
 	status, confirmation := flash["status"], flash["confirmation"]
 	setupKey := ""
 	if status == TwoFactorEnabledFlash && confirmation == confirmationRequired {
-		key, err := h.svc.SetupKey(r.Context(), u.ID)
+		key, err := h.svc.SetupKey(ctx, u.ID)
 		if err != nil {
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
 		}
 		setupKey = key
 	}
-	views.ProfilePage(h.appName, middleware.TokenFromContext(r.Context()),
-		status, confirmation, flash["recoveryCodes"], flash["error"], setupKey).Render(r.Context(), w)
+
+	var phone string
+	if u.Phone != nil {
+		phone = *u.Phone
+	}
+	d := views.ProfilePageData{
+		AppName:   h.appName,
+		CSRFToken: middleware.TokenFromContext(r.Context()),
+		Sidebar: views.NewSidebarData(
+			h.appName, middleware.TokenFromContext(r.Context()),
+			u.Name, u.Email, "/dashboard/profile", u.State == user.StateSuspended,
+		),
+		User:            views.ProfileUser{Name: u.Name, Email: u.Email, Phone: phone},
+		EmploymentTypes: toViewOptions(h.cfg.Career.EmploymentTypes),
+		Levels:          h.cfg.Education.Levels,
+		Institutions:    h.cfg.Education.Institutions,
+		Subjects:        h.cfg.Education.Subjects,
+		Status:          status,
+		ErrMsg:          flash["error"],
+		Confirmation:    confirmation,
+		RecoveryCodes:   flash["recoveryCodes"],
+		SetupKey:        setupKey,
+	}
+
+	// Profile row (missing row renders an empty form — the upsert creates it).
+	if p, err := h.profiles.Get(ctx, u.ID); err == nil {
+		d.Profile = views.ProfileData{
+			PhotoURL:         photoURL(p.PhotoPath),
+			DateOfBirth:      p.DateOfBirth,
+			Gender:           deref(p.Gender),
+			BloodGroup:       deref(p.BloodGroup),
+			PresentAddress:   deref(p.PresentAddress),
+			PermanentAddress: deref(p.PermanentAddress),
+			Website:          deref(p.Website),
+			SocialLinks:      p.SocialLinks,
+			EmergencyContact: p.EmergencyContact,
+			LocalNames:       p.LocalNames,
+		}
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+	// Local-name inputs render whenever configured, even before a profile row
+	// exists (reference reads config('app.local_names'), not the row).
+	for _, ln := range h.cfg.App.LocalNames {
+		d.LocalNames = append(d.LocalNames, views.LocalNameField{
+			Code: ln.Code, Label: ln.Label, Required: ln.Required,
+			Value: d.Profile.LocalNames[ln.Code],
+		})
+	}
+
+	if eds, err := h.educations.List(ctx, u.ID); err == nil {
+		for _, e := range eds {
+			d.Educations = append(d.Educations, views.EducationView{
+				ID: e.ID, Level: e.Level, Institution: e.Institution,
+				StudentID: deref(e.StudentID), Subject: e.Subject, IsCurrent: e.IsCurrent,
+				StartYear: e.StartYear, StartMonth: derefI16(e.StartMonth),
+				EndYear: derefI32(e.EndYear), EndMonth: derefI16(e.EndMonth),
+			})
+		}
+	} else {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	if cars, err := h.careers.List(ctx, u.ID); err == nil {
+		for _, c := range cars {
+			d.Careers = append(d.Careers, views.CareerView{
+				ID: c.ID, EmploymentType: c.EmploymentType, JobTitle: c.JobTitle,
+				Company: c.Company, Industry: deref(c.Industry), Location: deref(c.Location),
+				StartYear: c.StartYear, StartMonth: derefI16(c.StartMonth), IsCurrent: c.IsCurrent,
+				EndYear: derefI32(c.EndYear), EndMonth: derefI16(c.EndMonth), Description: deref(c.Description),
+			})
+		}
+	} else {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	views.ProfilePage(d).Render(ctx, w)
+}
+
+// photoURL maps a stored photo_path to its streamed media URL ("" when none).
+func photoURL(path *string) string {
+	if path == nil || *path == "" {
+		return ""
+	}
+	return "/media/profile-photos/" + filepath.Base(*path)
+}
+
+func deref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+func derefI16(p *int16) int16 {
+	if p == nil {
+		return 0
+	}
+	return *p
+}
+
+func derefI32(p *int32) int32 {
+	if p == nil {
+		return 0
+	}
+	return *p
+}
+
+// toViewOptions converts config select options to view options.
+func toViewOptions(in []config.Option) []views.Option {
+	out := make([]views.Option, 0, len(in))
+	for _, o := range in {
+		out = append(out, views.Option{Value: o.Value, Label: o.Label})
+	}
+	return out
 }

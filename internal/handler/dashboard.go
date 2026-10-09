@@ -4,11 +4,12 @@ import (
 	"net/http"
 
 	"github.com/shuvo-paul/baaku/internal/middleware"
+	"github.com/shuvo-paul/baaku/internal/service/user"
 	"github.com/shuvo-paul/baaku/internal/views"
 )
 
-// Dashboard is the minimal post-login landing (reference DashboardController
-// behind auth + verified; full content is a later wave).
+// Dashboard is the post-login landing (reference DashboardController rendered
+// inside layouts/dashboard).
 type Dashboard struct {
 	appName string
 }
@@ -24,5 +25,11 @@ func (h *Dashboard) Show(w http.ResponseWriter, r *http.Request) {
 		middleware.Redirect(w, r, middleware.LoginPath)
 		return
 	}
-	views.DashboardPage(h.appName, middleware.TokenFromContext(r.Context()), u.Name, middleware.FlashFromContext(r.Context())["status"]).Render(r.Context(), w)
+	csrf := middleware.TokenFromContext(r.Context())
+	views.DashboardPage(views.DashboardPageData{
+		Sidebar: views.NewSidebarData(h.appName, csrf, u.Name, u.Email, "/dashboard", u.State == user.StateSuspended),
+		Name:    u.Name,
+		State:   string(u.State),
+		Status:  middleware.FlashFromContext(r.Context())["status"],
+	}).Render(r.Context(), w)
 }
