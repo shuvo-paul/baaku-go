@@ -74,7 +74,7 @@ func (h *RoleAdmin) Create(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
-	views.RoleFormPage(h.formData(r, u, 0, "", nil, perms, "")).Render(r.Context(), w)
+	views.RoleFormPage(h.formData(r, u, 0, "", nil, perms, nil)).Render(r.Context(), w)
 }
 
 // Store handles POST /dashboard/roles (reference RoleController@store).
@@ -122,7 +122,7 @@ func (h *RoleAdmin) Edit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
-	views.RoleFormPage(h.formData(r, u, id, cur.Name, cur.Permissions, perms, "")).Render(r.Context(), w)
+	views.RoleFormPage(h.formData(r, u, id, cur.Name, cur.Permissions, perms, nil)).Render(r.Context(), w)
 }
 
 // Update handles PUT /dashboard/roles/{id} (reference RoleController@update).
@@ -181,8 +181,9 @@ func (h *RoleAdmin) Destroy(w http.ResponseWriter, r *http.Request) {
 	middleware.RedirectWithFlash(w, r, "/dashboard/roles", "status", "role-deleted")
 }
 
-// renderFormError re-renders the role form with the validator message
-// (reference: $request->errors() redisplay). Non-field errors 500.
+// renderFormError re-renders the role form with per-field validator messages
+// (reference: $request->errors() redisplayed under each input). Non-field
+// errors 500.
 func (h *RoleAdmin) renderFormError(w http.ResponseWriter, r *http.Request, u user.User, id int64, name string, perms []string, err error) {
 	var fieldErrs role.FieldErrors
 	if !errors.As(err, &fieldErrs) {
@@ -194,24 +195,28 @@ func (h *RoleAdmin) renderFormError(w http.ResponseWriter, r *http.Request, u us
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
-	views.RoleFormPage(h.formData(r, u, id, name, perms, all, fieldErrs.Error())).Render(r.Context(), w)
+	views.RoleFormPage(h.formData(r, u, id, name, perms, all, fieldErrs)).Render(r.Context(), w)
 }
 
-// formData builds the role create/edit form view model.
-func (h *RoleAdmin) formData(r *http.Request, u user.User, id int64, name string, selected, all []string, errMsg string) views.RoleFormData {
+// formData builds the role create/edit form view model; errs is nil on a
+// clean render and the validator's field map on a redisplay.
+func (h *RoleAdmin) formData(r *http.Request, u user.User, id int64, name string, selected, all []string, errs map[string]string) views.RoleFormData {
 	title := "Create Role"
 	if id != 0 {
 		title = "Edit Role"
 	}
+	if errs == nil {
+		errs = map[string]string{}
+	}
 	return views.RoleFormData{
-		Sidebar:      roleSidebar(h.appName, r, u),
-		Title:        title,
-		ID:           id,
-		Name:         name,
-		Permissions:  all,
-		Selected:     selected,
-		FlashMessage: errMsg,
-		CSRF:         middleware.TokenFromContext(r.Context()),
+		Sidebar:     roleSidebar(h.appName, r, u),
+		Title:       title,
+		ID:          id,
+		Name:        name,
+		Permissions: all,
+		Selected:    selected,
+		Errors:      errs,
+		CSRF:        middleware.TokenFromContext(r.Context()),
 	}
 }
 

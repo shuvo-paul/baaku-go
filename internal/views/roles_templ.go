@@ -30,14 +30,14 @@ type RoleRow struct {
 // RoleFormData is the shared create/edit role form (reference
 // roles/create.blade.php + roles/edit.blade.php).
 type RoleFormData struct {
-	Sidebar      SidebarData
-	Title        string // "Create Role" / "Edit Role"
-	ID           int64  // 0 = create
-	Name         string
-	Permissions  []string // every permission name (the checkbox list)
-	Selected     []string // currently granted permission names (edit)
-	FlashMessage string
-	CSRF         string
+	Sidebar     SidebarData
+	Title       string // "Create Role" / "Edit Role"
+	ID          int64  // 0 = create
+	Name        string
+	Permissions []string          // every permission name (the checkbox list)
+	Selected    []string          // currently granted permission names (edit)
+	Errors      map[string]string // field errors (name / permissions), Laravel $errors
+	CSRF        string
 }
 
 // isSelected reports whether a permission name is currently granted.
@@ -50,16 +50,13 @@ func (d RoleFormData) isSelected(name string) bool {
 	return false
 }
 
-// joinPermissions renders the granted permission names as a comma list.
-func joinPermissions(perms []string) string {
-	out := ""
-	for i, p := range perms {
-		if i > 0 {
-			out += ", "
-		}
-		out += p
+// permCountLabel renders the reference trans_choice('dashboard.permissions_count'):
+// ":count permission|:count permissions".
+func permCountLabel(n int) string {
+	if n == 1 {
+		return "1 permission"
 	}
-	return out
+	return strconv.Itoa(n) + " permissions"
 }
 
 // roleFormAction is the form target: POST /dashboard/roles (create) or POST
@@ -114,23 +111,23 @@ func RolesPage(d RolesPageData) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				if d.Flash == "role-created" {
-					templ_7745c5c3_Err = StatusText("Role created.").Render(ctx, templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = StatusText("Role created successfully.").Render(ctx, templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 				} else if d.Flash == "role-updated" {
-					templ_7745c5c3_Err = StatusText("Role updated.").Render(ctx, templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = StatusText("Role updated successfully.").Render(ctx, templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 				} else if d.Flash == "role-deleted" {
-					templ_7745c5c3_Err = StatusText("Role deleted.").Render(ctx, templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = StatusText("Role deleted successfully.").Render(ctx, templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 				}
 				if d.Err == "role-has-users" {
-					templ_7745c5c3_Err = ErrText("This role is still assigned to members and cannot be deleted.").Render(ctx, templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = ErrText("Cannot delete a role that is assigned to users.").Render(ctx, templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -140,49 +137,46 @@ func RolesPage(d RolesPageData) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<section class=\"card overflow-hidden\"><table class=\"w-full text-sm\"><thead class=\"border-b border-outline-variant/60 text-left label-caps text-on-surface-variant\"><tr><th class=\"px-4 py-3\">Role</th><th class=\"px-4 py-3\">Permissions</th><th class=\"px-4 py-3 text-right\">Actions</th></tr></thead> <tbody>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<section class=\"card overflow-hidden\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			if len(d.Rows) == 0 {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<tr><td colspan=\"3\" class=\"px-4 py-10 text-center text-on-surface-variant\">No roles have been created yet.</td></tr>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<p class=\"px-4 py-10 text-center text-on-surface-variant\">No roles have been created yet.</p>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			} else {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<table class=\"w-full text-sm\"><thead class=\"border-b border-outline-variant/60 text-left label-caps text-on-surface-variant\"><tr><th class=\"px-4 py-3\">Role Name</th><th class=\"px-4 py-3\">Select Permissions</th><th class=\"px-4 py-3 text-right\">Actions</th></tr></thead> <tbody>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
 				for _, row := range d.Rows {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<tr class=\"border-b border-outline-variant/40 last:border-0\"><td class=\"px-4 py-3 font-semibold text-navy\">")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<tr class=\"border-b border-outline-variant/40 last:border-0\"><td class=\"px-4 py-3 font-semibold text-navy\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var3 string
 					templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(row.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/roles.templ`, Line: 110, Col: 65}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/roles.templ`, Line: 105, Col: 65}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</td><td class=\"px-4 py-3 text-on-surface-variant\">")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</td><td class=\"px-4 py-3 text-on-surface-variant\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					if len(row.Permissions) == 0 {
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<span class=\"italic opacity-70\">None</span>")
-						if templ_7745c5c3_Err != nil {
-							return templ_7745c5c3_Err
-						}
-					} else {
-						var templ_7745c5c3_Var4 string
-						templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(joinPermissions(row.Permissions))
-						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/roles.templ`, Line: 115, Col: 45}
-						}
-						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
-						if templ_7745c5c3_Err != nil {
-							return templ_7745c5c3_Err
-						}
+					var templ_7745c5c3_Var4 string
+					templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(permCountLabel(len(row.Permissions)))
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/roles.templ`, Line: 107, Col: 48}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
 					}
 					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</td><td class=\"px-4 py-3 text-right\"><a href=\"")
 					if templ_7745c5c3_Err != nil {
@@ -191,7 +185,7 @@ func RolesPage(d RolesPageData) templ.Component {
 					var templ_7745c5c3_Var5 templ.SafeURL
 					templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL("/dashboard/roles/" + strconv.FormatInt(row.ID, 10) + "/edit"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/roles.templ`, Line: 119, Col: 96}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/roles.templ`, Line: 110, Col: 96}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 					if templ_7745c5c3_Err != nil {
@@ -204,13 +198,13 @@ func RolesPage(d RolesPageData) templ.Component {
 					var templ_7745c5c3_Var6 templ.SafeURL
 					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL("/dashboard/roles/" + strconv.FormatInt(row.ID, 10)))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/roles.templ`, Line: 120, Col: 105}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/roles.templ`, Line: 111, Col: 105}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "\" class=\"ml-4 inline\" onsubmit=\"return confirm('Delete this role?')\"><input type=\"hidden\" name=\"_method\" value=\"DELETE\">")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "\" class=\"ml-4 inline\" onsubmit=\"return confirm('Are you sure?')\"><input type=\"hidden\" name=\"_method\" value=\"DELETE\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -223,8 +217,12 @@ func RolesPage(d RolesPageData) templ.Component {
 						return templ_7745c5c3_Err
 					}
 				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</tbody></table>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</tbody></table></section></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "</section></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -271,43 +269,33 @@ func RoleFormPage(d RoleFormData) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<div class=\"max-w-2xl space-y-8\"><section><p class=\"label-caps text-gold\">Roles</p><h1 class=\"mt-3 font-serif text-3xl sm:text-4xl font-semibold text-navy\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<div class=\"max-w-2xl space-y-8\"><section><p class=\"label-caps text-gold\">Roles</p><h1 class=\"mt-3 font-serif text-3xl sm:text-4xl font-semibold text-navy\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(d.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/roles.templ`, Line: 141, Col: 86}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/roles.templ`, Line: 132, Col: 86}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "</h1></section>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			if d.FlashMessage != "" {
-				templ_7745c5c3_Err = ErrText(d.FlashMessage).Render(ctx, templ_7745c5c3_Buffer)
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "<form method=\"POST\" action=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "</h1></section><form method=\"POST\" action=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var10 templ.SafeURL
 			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(roleFormAction(d.ID)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/roles.templ`, Line: 146, Col: 67}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/roles.templ`, Line: 134, Col: 67}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "\" class=\"card space-y-6\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "\" class=\"card space-y-6 p-6\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -321,16 +309,24 @@ func RoleFormPage(d RoleFormData) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = TextInput("Name", "name", "text", templ.Attributes{"value": d.Name, "required": true}).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "<div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "<fieldset class=\"space-y-3\"><legend class=\"label-caps text-on-surface-variant\">Permissions</legend> ")
+			templ_7745c5c3_Err = TextInput("Role Name", "name", "text", templ.Attributes{"value": d.Name, "required": true}).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = ErrText(d.Errors["name"]).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "</div><fieldset class=\"space-y-3\"><legend class=\"label-caps text-on-surface-variant\">Select Permissions</legend> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			if len(d.Permissions) == 0 {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "<p class=\"text-sm text-on-surface-variant italic\">No permissions have been seeded yet.</p>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<p class=\"text-sm text-on-surface-variant italic\">No permissions have been seeded yet.</p>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -342,7 +338,11 @@ func RoleFormPage(d RoleFormData) templ.Component {
 					}
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "</fieldset><div class=\"flex items-center gap-4\">")
+			templ_7745c5c3_Err = ErrText(d.Errors["permissions"]).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "</fieldset><div class=\"flex items-center gap-4\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -350,7 +350,7 @@ func RoleFormPage(d RoleFormData) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "<a href=\"/dashboard/roles\" class=\"text-sm text-on-surface-variant hover:text-navy\">Cancel</a></div></form></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<a href=\"/dashboard/roles\" class=\"text-sm text-on-surface-variant hover:text-navy\">Back to Dashboard</a></div></form></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

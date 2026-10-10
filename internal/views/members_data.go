@@ -145,8 +145,16 @@ type MemberShowPageData struct {
 	IsAdmin      bool
 	ShowControls bool // admin + verified + not-self (the reference gate)
 	Transitions  []TransitionView
-	Err          string
-	CSRF         string
+	// ShowMembership gates the reference membership summary box (viewer can
+	// "manage memberships" && features.memberships).
+	ShowMembership bool
+	Membership     *MemberMembershipView // nil = no membership yet
+	Payments       []MemberPaymentView   // latest 5
+	// ShowAssignRoles renders the assign-roles link (admin + target active +
+	// not self; reference users/show.blade.php).
+	ShowAssignRoles bool
+	Err             string
+	CSRF            string
 }
 
 // MemberProfileView is the identity rail + narrative for one member.
@@ -174,12 +182,34 @@ type MemberProfileView struct {
 	EmergencyName     string // admin only
 	EmergencyRelation string
 	EmergencyPhone    string
+	// HasProfile reports whether a profiles row exists (reference
+	// users/show.blade.php `if (! $profile)`).
+	HasProfile bool
 	// Narrative lists.
 	Educations []MemberEducationView
 	Careers    []MemberCareerView
 }
 
+// MemberMembershipView is one membership summary row (reference
+// users/show.blade.php membership box).
+type MemberMembershipView struct {
+	PlanName    string // "—" when the plan is missing
+	StatusLabel string // Active / Expired / Cancelled (effective status)
+	StatusClass string
+	Starts      string // "02 Jan 2006" or "—"
+	Ends        string // "02 Jan 2006" or "Never"
+}
+
+// MemberPaymentView is one payment row in the membership box (latest 5).
+type MemberPaymentView struct {
+	PlanName    string // "—" when the plan is missing
+	PaidAt      string // "02 Jan 2006"
+	StatusLabel string // Pending / Approved / Rejected
+	StatusClass string
+}
+
 // SocialLink is one rendered social icon (linkedin/facebook).
+
 type SocialLink struct {
 	Key   string
 	URL   string
@@ -210,7 +240,72 @@ type TransitionView struct {
 	Label       string
 	Description string
 	NeedsReason bool
-	CSRF        string
+	// Kind picks the button style: "gold" (active), "error" (rejected),
+	// "" = secondary (reference users/show.blade.php @if chain).
+	Kind string
+	CSRF string
 	// Target is the form action: POST /dashboard/users/{id}/state (spoofed PUT).
 	Target string
+}
+
+// memberFlashMessage maps the index status-flash slugs to the reference's
+// session copy (lang dashboard.php).
+func memberFlashMessage(key string) string {
+	switch key {
+	case "user-state-updated":
+		return "User state updated successfully."
+	case "user-roles-updated":
+		return "User roles updated successfully."
+	}
+	return key
+}
+
+// memberErrMessage maps the users error-flash slugs to the reference copy;
+// validation messages already carry their text and pass through.
+func memberErrMessage(key string) string {
+	switch key {
+	case "invalid-state-transition":
+		return "Invalid state transition."
+	case "cannot-change-own-state":
+		return "You cannot change your own membership state."
+	case "unverified-user-no-transition":
+		return "Email must be verified before membership actions can be taken."
+	}
+	return key
+}
+
+// memberSearchData is the Alpine object powering the reference's debounced
+// live search (users/index.blade.php x-data + fetch XHR branch).
+func memberSearchData(search string) string {
+	return `{
+		search: ` + strconv.Quote(search) + `,
+		controller: null,
+		searchUsers() {
+			if (this.controller) this.controller.abort();
+			this.controller = new AbortController();
+			const filter = document.getElementById('filter').value;
+			fetch('/dashboard/users?filter=' + encodeURIComponent(filter) + '&search=' + encodeURIComponent(this.search), {
+				headers: { 'X-Requested-With': 'XMLHttpRequest' },
+				signal: this.controller.signal
+			})
+			.then(r => r.json())
+			.then(data => {
+				document.getElementById('user-grid').innerHTML = data.grid;
+				document.getElementById('user-pagination').innerHTML = data.pagination;
+			})
+			.catch(e => { if (e.name !== 'AbortError') throw e; });
+		}
+	}`
+}
+
+// transitionButtonClass picks the transition button styling (reference
+// users/show.blade.php: active gold, rejected error outline, else secondary).
+func transitionButtonClass(t TransitionView) string {
+	switch t.Kind {
+	case "gold":
+		return "inline-flex items-center justify-center rounded bg-gold px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-gold/90 focus-visible:ring-2 focus-visible:ring-gold/50"
+	case "error":
+		return "inline-flex items-center justify-center rounded border border-error px-4 py-2 text-sm font-semibold text-error transition-colors hover:bg-error hover:text-white focus-visible:ring-2 focus-visible:ring-error/50"
+	}
+	return "btn-secondary"
 }

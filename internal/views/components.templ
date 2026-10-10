@@ -115,6 +115,14 @@ templ StatusText(msg string) {
 	}
 }
 
+// ErrBanner is the dashboard error flash box (reference layouts/dashboard
+// blade session('error') box).
+templ ErrBanner(msg string) {
+	if msg != "" {
+		<div class="rounded-lg border border-error/25 bg-error/5 px-4 py-3 text-sm text-error" role="alert">{ msg }</div>
+	}
+}
+
 templ SubmitButton(text string) {
 	<button type="submit" class="btn-primary">{ text }</button>
 }

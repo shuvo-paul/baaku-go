@@ -5,10 +5,38 @@ import "strconv"
 templ MembersPage(d MembersPageData) {
 	@DashboardLayout(d.Sidebar) {
 		<div class="space-y-8">
+			if d.Flash != "" || d.Err != "" {
+				<section class="space-y-3">
+					if d.Err != "" {
+						@ErrBanner(memberErrMessage(d.Err))
+					}
+					if d.Flash != "" {
+						@StatusText(memberFlashMessage(d.Flash))
+					}
+				</section>
+			}
+			<h1 class="mb-6 text-2xl font-bold text-navy">
+				if d.IsAdmin {
+					Manage User Roles
+				} else {
+					Member Directory
+				}
+			</h1>
 			if d.IsAdmin {
-				<form method="GET" action="/dashboard/users" class="card space-y-4">
+				<form method="GET" action="/dashboard/users" class="card mb-6 p-4" x-data={ memberSearchData(d.Search) }>
 					<div class="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_176px]">
-						@TextInput("Search members by name or email", "search", "search", templ.Attributes{"value": d.Search, "placeholder": "Search members by name or email"})
+						<label class="mb-1 block text-sm font-medium text-gray-700">
+							Search members by name or email
+							<input
+								type="search"
+								name="search"
+								class="field-input"
+								value={ d.Search }
+								placeholder="Search members by name or email"
+								x-model="search"
+								@input.debounce.300ms="searchUsers()"
+							/>
+						</label>
 						<div>
 							<label for="filter" class="mb-1 block text-sm font-medium text-gray-700">Status</label>
 							<select name="filter" id="filter" class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-on-surface shadow-sm transition-colors focus:border-navy focus:outline-none focus:ring-2 focus:ring-gold/50" onchange="this.form.submit()">
@@ -22,41 +50,53 @@ templ MembersPage(d MembersPageData) {
 							</select>
 						</div>
 					</div>
-					<button type="submit" class="btn-secondary">Search</button>
 				</form>
-				<p>{ d.Summary() }</p>
+				<p class="mb-6 text-sm text-on-surface-variant">{ d.Summary() }</p>
 			}
-
-			<div class="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
-				if len(d.Members) == 0 {
-					<p class="col-span-full text-sm text-on-surface-variant">{ d.EmptyMessage() }</p>
-				} else {
-					for _, m := range d.Members {
-						@memberCard(m)
-					}
-				}
+			<div id="user-grid" class="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+				@MemberCards(d)
 			</div>
-			if d.HasPrev || d.HasNext {
-				<nav role="navigation" aria-label="Pagination" class="flex items-center justify-between">
-					if d.HasPrev {
-						<a href={ templ.SafeURL(d.PrevHref()) } rel="prev" class="btn-secondary">Prev</a>
-					} else {
-						<span class="btn-secondary opacity-40">Prev</span>
-					}
-					if d.HasNext {
-						<a href={ templ.SafeURL(d.NextHref()) } rel="next" class="btn-secondary">Next</a>
-					} else {
-						<span class="btn-secondary opacity-40">Next</span>
-					}
-				</nav>
-			}
+			<div id="user-pagination" class="mt-6">
+				@MemberPaginationNav(d)
+			</div>
 		</div>
+	}
+}
+
+// MemberCards is the directory grid fragment (reference
+// users/partials/grid.blade.php); the XHR live-search response swaps it in.
+templ MemberCards(d MembersPageData) {
+	if len(d.Members) == 0 {
+		<p class="col-span-full text-sm text-on-surface-variant">{ d.EmptyMessage() }</p>
+	} else {
+		for _, m := range d.Members {
+			@memberCard(m)
+		}
+	}
+}
+
+// MemberPaginationNav is the pagination fragment (reference
+// pagination/users.blade.php) the XHR live-search response swaps in.
+templ MemberPaginationNav(d MembersPageData) {
+	if d.HasPrev || d.HasNext {
+		<nav role="navigation" aria-label="Pagination" class="mt-10 flex items-center justify-between">
+			if d.HasPrev {
+				<a href={ templ.SafeURL(d.PrevHref()) } rel="prev" class="btn-secondary"><span aria-hidden="true">←</span> Previous</a>
+			} else {
+				<span class="btn-secondary pointer-events-none opacity-40" aria-disabled="true"><span aria-hidden="true">←</span> Previous</span>
+			}
+			if d.HasNext {
+				<a href={ templ.SafeURL(d.NextHref()) } rel="next" class="btn-secondary">Next <span aria-hidden="true">→</span></a>
+			} else {
+				<span class="btn-secondary pointer-events-none opacity-40" aria-disabled="true">Next <span aria-hidden="true">→</span></span>
+			}
+		</nav>
 	}
 }
 
 
 templ memberCard(m MemberCardView) {
-	<a href={ templ.SafeURL("/dashboard/users/" + strconv.FormatInt(m.ID, 10)) } class="card group flex h-full flex-col">
+	<a href={ templ.SafeURL("/dashboard/users/" + strconv.FormatInt(m.ID, 10)) } class="card group flex h-full flex-col p-6">
 		<div class="flex items-center gap-4">
 			if m.PhotoURL != "" {
 				<img src={ templ.SafeURL(m.PhotoURL) } alt={ m.Name } class="h-16 w-16 rounded-lg object-cover"/>
@@ -87,10 +127,10 @@ templ memberCard(m MemberCardView) {
 templ MemberShowPage(d MemberShowPageData) {
 	@DashboardLayout(d.Sidebar) {
 		<div class="space-y-8">
-			<a href="/dashboard/users" class="inline-block text-sm text-navy hover:text-gold">← Back to Members</a>
+			<a href="/dashboard/users" class="inline-block text-sm text-navy hover:text-gold">Back to Users</a>
 			if d.Err != "" {
 				<section>
-					@ErrText(d.Err)
+					@ErrBanner(memberErrMessage(d.Err))
 				</section>
 			}
 			<div class="grid gap-6 lg:grid-cols-12">
@@ -125,6 +165,7 @@ templ MemberShowPage(d MemberShowPageData) {
 								<dd class="text-right text-navy">{ d.Member.MemberSince }</dd>
 							</div>
 						</dl>
+						if d.Member.HasProfile {
 						<div class="mt-6 border-t border-outline-variant/60 pt-5">
 							<p class="label-caps text-gold">Profile Details</p>
 							<dl class="mt-3 space-y-3 text-sm">
@@ -168,6 +209,7 @@ templ MemberShowPage(d MemberShowPageData) {
 								}
 							</dl>
 						</div>
+						}
 						if len(d.Member.Socials) > 0 {
 							<div class="mt-6 border-t border-outline-variant/60 pt-5">
 								<p class="label-caps text-gold">Social Links</p>
@@ -195,6 +237,9 @@ templ MemberShowPage(d MemberShowPageData) {
 					}
 				</aside>
 				<div class="space-y-6 lg:order-1 lg:col-span-8">
+					if !d.Member.HasProfile {
+						<div class="card px-6 py-8 text-sm text-on-surface-variant">This user has not submitted a profile yet.</div>
+					}
 					<section class="card p-6 lg:p-8">
 						<h2 class="font-serif text-2xl font-semibold text-navy">Education</h2>
 						<div class="mt-6 space-y-6">
@@ -241,6 +286,9 @@ templ MemberShowPage(d MemberShowPageData) {
 					</section>
 					<section class="card p-6 lg:p-8">
 						<h2 class="font-serif text-2xl font-semibold text-navy">Membership</h2>
+					if d.ShowMembership {
+						@memberMembershipBox(d)
+					}
 						<div class="mt-6 flex flex-wrap items-center gap-3">
 							<span class="text-sm text-on-surface-variant">Current state</span>
 							<span class={ "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium", stateBadge(d.Member.State) }>{ stateLabel(d.Member.State) }</span>
@@ -259,6 +307,11 @@ templ MemberShowPage(d MemberShowPageData) {
 								}
 							</div>
 						}
+						if d.ShowAssignRoles {
+							<div class="mt-6 border-t border-outline-variant/60 pt-5">
+								<a href={ templ.SafeURL("/dashboard/users/" + strconv.FormatInt(d.Member.ID, 10) + "/roles") } class="btn-secondary w-full">Assign Roles</a>
+							</div>
+						}
 					</section>
 				</div>
 			</div>
@@ -272,7 +325,7 @@ templ stateTransitionControl(t TransitionView) {
 			@CSRFToken(t.CSRF)
 			<input type="hidden" name="_method" value="PUT"/>
 			<input type="hidden" name="state" value={ templ.URL(t.Value) }/>
-			<button type="button" @click="open = true" class="btn-secondary">{ t.Label }</button>
+			<button type="button" @click="open = true" class={ transitionButtonClass(t) }>{ t.Label }</button>
 			<div x-show="open" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4">
 				<div class="absolute inset-0 bg-navy/40 backdrop-blur-sm" @click="open = false" aria-hidden="true"></div>
 				<div class="relative w-full max-w-lg rounded-lg border border-outline-variant/60 bg-white p-6 shadow-xl">
@@ -291,7 +344,37 @@ templ stateTransitionControl(t TransitionView) {
 			@CSRFToken(t.CSRF)
 			<input type="hidden" name="_method" value="PUT"/>
 			<input type="hidden" name="state" value={ templ.URL(t.Value) }/>
-			<button type="submit" class="btn-secondary">{ t.Label }</button>
+			<button type="submit" class={ transitionButtonClass(t) }>{ t.Label }</button>
 		</form>
 	}
+}
+
+// memberMembershipBox is the reference membership summary card on the member
+// show page (current membership + latest five payments).
+templ memberMembershipBox(d MemberShowPageData) {
+	<div class="mt-6 rounded-lg bg-surface-container/60 px-4 py-4">
+		<p class="label-caps text-gold">Current membership</p>
+		if d.Membership != nil {
+			<div class="mt-2 flex flex-wrap items-center gap-2">
+				<span class="font-semibold text-navy">{ d.Membership.PlanName }</span>
+				<span class={ "rounded px-2 py-0.5 text-xs font-medium", d.Membership.StatusClass }>{ d.Membership.StatusLabel }</span>
+			</div>
+			<p class="mt-2 text-sm text-on-surface-variant">{ d.Membership.Starts } → { d.Membership.Ends }</p>
+		} else {
+			<p class="mt-2 text-sm text-on-surface-variant">You do not have an active membership yet.</p>
+		}
+		if len(d.Payments) > 0 {
+			<div class="mt-4 border-t border-outline-variant/60 pt-4">
+				<p class="label-caps text-gold">Payments</p>
+				<ul class="mt-2 space-y-1.5 text-sm text-on-surface-variant">
+					for _, p := range d.Payments {
+						<li class="flex items-center justify-between gap-3">
+							<span>{ p.PlanName } · { p.PaidAt }</span>
+							<span class={ "rounded px-2 py-0.5 text-xs font-medium", p.StatusClass }>{ p.StatusLabel }</span>
+						</li>
+					}
+				</ul>
+			</div>
+		}
+	</div>
 }

@@ -119,6 +119,16 @@ func (h *UserRoles) formData(r *http.Request, u user.User, target userrole.Targe
 		Roles:    roles,
 		Selected: selected,
 		ErrMsg:   errMsg,
+		Flash:    rolesUpdateFlash(r),
 		CSRF:     middleware.TokenFromContext(r.Context()),
 	}
+}
+
+// rolesUpdateFlash maps the success flash to the reference's copy
+// (dashboard.user_roles_updated).
+func rolesUpdateFlash(r *http.Request) string {
+	if s := middleware.FlashFromContext(r.Context())["status"]; s == "user-roles-updated" {
+		return "User roles updated successfully."
+	}
+	return ""
 }

@@ -17,6 +17,7 @@ type UserRolesFormData struct {
 	Roles    []string // every role name (the checkbox list)
 	Selected []string // currently assigned role names
 	ErrMsg   string   // guard message (unverified / cannot-remove-own-admin)
+	Flash    string   // user-roles-updated success copy ("" = none)
 	CSRF     string
 }
 
@@ -49,9 +50,12 @@ templ UserRolesPage(d UserRolesFormData) {
 					(User Email: <span class="text-navy">{ d.User.Email }</span>)
 				</p>
 			</div>
-			if d.ErrMsg != "" {
-				<section>
-					@ErrText(d.ErrMsg)
+			if d.Flash != "" || d.ErrMsg != "" {
+				<section class="space-y-3">
+					if d.ErrMsg != "" {
+						@ErrBanner(d.ErrMsg)
+					}
+					@StatusText(d.Flash)
 				</section>
 			}
 			<form method="POST" action={ templ.SafeURL(userRolesAction(d.User.ID)) } class="card space-y-6">
