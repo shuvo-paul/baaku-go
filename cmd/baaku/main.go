@@ -18,6 +18,7 @@ import (
 	"github.com/shuvo-paul/baaku/internal/middleware"
 	activitylogrepo "github.com/shuvo-paul/baaku/internal/repository/activitylog"
 	careerrepo "github.com/shuvo-paul/baaku/internal/repository/career"
+	committeerepo "github.com/shuvo-paul/baaku/internal/repository/committee"
 	"github.com/shuvo-paul/baaku/internal/repository/confirm"
 	educationrepo "github.com/shuvo-paul/baaku/internal/repository/education"
 	memberdirectoryrepo "github.com/shuvo-paul/baaku/internal/repository/memberdirectory"
@@ -34,6 +35,7 @@ import (
 	"github.com/shuvo-paul/baaku/internal/repository/user"
 	"github.com/shuvo-paul/baaku/internal/service/activitylog"
 	"github.com/shuvo-paul/baaku/internal/service/career"
+	committeesvc "github.com/shuvo-paul/baaku/internal/service/committee"
 	"github.com/shuvo-paul/baaku/internal/service/completeprofile"
 	"github.com/shuvo-paul/baaku/internal/service/education"
 	"github.com/shuvo-paul/baaku/internal/service/emailverify"
@@ -109,6 +111,10 @@ func main() {
 	// Wave 2: roles CRUD (reference RoleController) behind "manage roles".
 	roleRepo := rolerepo.NewRepo(q)
 	roleSvc := rolesvc.New(roleRepo, activityLog)
+	// Wave 6: committee members + positions (reference CommitteeController +
+	// PositionController) behind "manage committee".
+	committeeRepo := committeerepo.NewRepo(q)
+	committeeSvc := committeesvc.New(committeeRepo)
 
 	authSvc := login.New(users, sessStore, users)
 	challengeSvc := twofactorchallenge.New(sessStore, twofa, users)
@@ -289,6 +295,37 @@ func main() {
 	r.With(roleMW...).Get("/dashboard/roles/{id}/edit", roleH.Edit)
 	r.With(roleMW...).Put("/dashboard/roles/{id}", roleH.Update)
 	r.With(roleMW...).Delete("/dashboard/roles/{id}", roleH.Destroy)
+
+	// Committee + positions (reference routes/dashboard.php: committee group
+	// behind permission:manage committee → user.suspended).
+	committeeH := handler.NewCommitteeAdmin(committeeSvc, cfg.App.Name)
+	positionsH := handler.NewPositionsAdmin(committeeSvc, cfg.App.Name)
+	committeeMW := []func(http.Handler) http.Handler{authMW, middleware.RequireVerified, middleware.CompleteProfileCheck(profRepo), middleware.CheckUserSuspended, loadPerms, middleware.RequirePermission(permSvc, "manage committee")}
+	r.With(committeeMW...).Get("/dashboard/committee", committeeH.Index)
+	r.With(committeeMW...).Get("/dashboard/committee/create", committeeH.Create)
+	r.With(committeeMW...).Post("/dashboard/committee", committeeH.Store)
+	r.With(committeeMW...).Get("/dashboard/committee/users/search", committeeH.SearchUsers)
+	r.With(committeeMW...).Get("/dashboard/committee/{id}/edit", committeeH.Edit)
+	r.With(committeeMW...).Put("/dashboard/committee/{id}", committeeH.Update)
+	r.With(committeeMW...).Delete("/dashboard/committee/{id}", committeeH.Destroy)
+	r.With(committeeMW...).Post("/dashboard/committee/reorder", committeeH.Reorder)
+	r.With(committeeMW...).Get("/dashboard/positions", positionsH.Index)
+	r.With(committeeMW...).Get("/dashboard/positions/create", positionsH.Create)
+	r.With(committeeMW...).Post("/dashboard/positions", positionsH.Store)
+	r.With(committeeMW...).Get("/dashboard/positions/{id}/edit", positionsH.Edit)
+	r.With(committeeMW...).Put("/dashboard/positions/{id}", positionsH.Update)
+	r.With(committeeMW...).Delete("/dashboard/positions/{id}", positionsH.Destroy)
+
+	// Committee photos streamed from the public disk (reference
+	// MediaController@committeePhoto).
+	committeePhotoH := handler.NewMediaCommitteePhoto()
+	r.Get("/media/committee-photos/{file}", committeePhotoH.Show)
+
+	// Public pages (reference routes/web.php): homepage + committee.
+	homeH := handler.NewHomepage(committeeSvc)
+	committeeFullH := handler.NewCommitteeFull(committeeSvc)
+	r.Get("/", homeH.Show)
+	r.Get("/committee", committeeFullH.Show)
 
 	// Member directory + state management (reference routes/dashboard.php:
 	// users.index/show behind user.approved inside the dashboard group;

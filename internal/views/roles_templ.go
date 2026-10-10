@@ -159,7 +159,7 @@ func RolesPage(d RolesPageData) templ.Component {
 					var templ_7745c5c3_Var3 string
 					templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(row.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `roles.templ`, Line: 105, Col: 65}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/roles.templ`, Line: 105, Col: 65}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 					if templ_7745c5c3_Err != nil {
@@ -172,7 +172,7 @@ func RolesPage(d RolesPageData) templ.Component {
 					var templ_7745c5c3_Var4 string
 					templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(permCountLabel(len(row.Permissions)))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `roles.templ`, Line: 107, Col: 48}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/roles.templ`, Line: 107, Col: 48}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 					if templ_7745c5c3_Err != nil {
@@ -185,7 +185,7 @@ func RolesPage(d RolesPageData) templ.Component {
 					var templ_7745c5c3_Var5 templ.SafeURL
 					templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL("/dashboard/roles/" + strconv.FormatInt(row.ID, 10) + "/edit"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `roles.templ`, Line: 110, Col: 96}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/roles.templ`, Line: 110, Col: 96}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 					if templ_7745c5c3_Err != nil {
@@ -198,7 +198,7 @@ func RolesPage(d RolesPageData) templ.Component {
 					var templ_7745c5c3_Var6 templ.SafeURL
 					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL("/dashboard/roles/" + strconv.FormatInt(row.ID, 10)))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `roles.templ`, Line: 111, Col: 105}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/roles.templ`, Line: 111, Col: 105}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 					if templ_7745c5c3_Err != nil {
@@ -276,7 +276,7 @@ func RoleFormPage(d RoleFormData) templ.Component {
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(d.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `roles.templ`, Line: 132, Col: 86}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/roles.templ`, Line: 132, Col: 86}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
@@ -289,7 +289,7 @@ func RoleFormPage(d RoleFormData) templ.Component {
 			var templ_7745c5c3_Var10 templ.SafeURL
 			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(roleFormAction(d.ID)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `roles.templ`, Line: 134, Col: 67}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/roles.templ`, Line: 134, Col: 67}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 			if templ_7745c5c3_Err != nil {

@@ -56,6 +56,9 @@ func (s SidebarData) navItems() []navItem {
 	if s.can("view activity log") {
 		items = append(items, navItem{"Activity Log", "/dashboard/activity-log"})
 	}
+	if s.can("manage committee") {
+		items = append(items, navItem{"Committee", "/dashboard/committee"})
+	}
 	// Membership (member-facing) shows for active members while the
 	// memberships feature is on (reference: config features.memberships &&
 	// state === active). The admin links below are permission-gated.
