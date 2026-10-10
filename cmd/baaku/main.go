@@ -163,7 +163,6 @@ func main() {
 	// (membership:members middleware) lands with the memberships wave.
 	memberRepo := memberdirectoryrepo.NewRepo(q)
 	membersSvc := memberdirectorysvc.New(memberRepo, educationSvc, careerSvc, activityLog, sendMail, cfg.App.URL)
-	membersH := handler.NewMembers(membersSvc, cfg.App.Name)
 	// Wave 4: assign roles to a member (reference UserRoleController@edit/update).
 	userRolesSvc := userrolesvc.New(users, roleRepo, roleRepo, activityLog, cfg.Auth.DefaultRoles)
 	userRolesH := handler.NewUserRoles(userRolesSvc, cfg.App.Name)
@@ -179,6 +178,9 @@ func main() {
 	methodSvc := methodsvc.New(methodRepo)
 	membershipSvc := membershipsvc.New(membershipRepo, planSvc, activityLog)
 	paySvc := paysvc.New(payRepo, membershipSvc, planSvc, methodSvc, activityLog)
+	// The member show page needs the target's membership + payments for the
+	// admin summary box (reference users/show.blade.php).
+	membersH := handler.NewMembers(membersSvc, membershipSvc, paySvc, cfg.Features.Memberships, cfg.App.Name)
 	membershipGate := membershipgate.New(cfg.Features.Memberships, membershipSvc)
 	myMemH := handler.NewMyMembership(membershipSvc, paySvc, planSvc, methodSvc, cfg, cfg.App.Name)
 	planH := handler.NewPlanAdmin(planSvc, cfg, cfg.App.Name)

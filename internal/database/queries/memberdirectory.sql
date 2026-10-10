@@ -11,8 +11,10 @@
 SELECT u.id, u.name, u.email, u.state, u.phone, u.email_verified_at, u.created_at,
        p.photo_path,
        COALESCE(array_agg(r.name ORDER BY r.name) FILTER (WHERE r.name IS NOT NULL), '{}') AS role_names,
-       ed.level AS education_level, ed.institution AS education_institution,
-       cr.job_title AS career_job_title, cr.company AS career_company
+       COALESCE(ed.level, '') AS education_level,
+       COALESCE(ed.institution, '') AS education_institution,
+       COALESCE(cr.job_title, '') AS career_job_title,
+       COALESCE(cr.company, '') AS career_company
 FROM public.users u
 LEFT JOIN public.profiles p ON p.user_id = u.id
 LEFT JOIN model_has_roles mhr ON mhr.model_type = 'App\Models\User' AND mhr.model_id = u.id
@@ -57,7 +59,7 @@ SELECT state, count(*)::bigint AS total FROM public.users GROUP BY state;
 SELECT u.id, u.name, u.email, u.state, u.phone, u.email_verified_at, u.created_at,
        p.photo_path, p.date_of_birth, p.gender, p.blood_group,
        p.present_address, p.permanent_address, p.social_links, p.website,
-       p.emergency_contact,
+       p.emergency_contact, (p.id IS NOT NULL)::boolean AS has_profile,
        COALESCE(array_agg(r.name ORDER BY r.name) FILTER (WHERE r.name IS NOT NULL), '{}') AS role_names
 FROM public.users u
 LEFT JOIN public.profiles p ON p.user_id = u.id
