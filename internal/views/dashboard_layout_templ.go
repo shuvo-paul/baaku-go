@@ -64,6 +64,9 @@ func (s SidebarData) navItems() []navItem {
 	if s.can("view activity log") {
 		items = append(items, navItem{"Activity Log", "/dashboard/activity-log"})
 	}
+	if s.can("manage committee") {
+		items = append(items, navItem{"Committee", "/dashboard/committee"})
+	}
 	// Membership (member-facing) shows for active members while the
 	// memberships feature is on (reference: config features.memberships &&
 	// state === active). The admin links below are permission-gated.
@@ -132,7 +135,7 @@ func DashboardLayout(s SidebarData) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(s.AppName)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/dashboard_layout.templ`, Line: 104, Col: 21}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/dashboard_layout.templ`, Line: 107, Col: 21}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -145,7 +148,7 @@ func DashboardLayout(s SidebarData) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(s.AppName)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/dashboard_layout.templ`, Line: 118, Col: 73}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/dashboard_layout.templ`, Line: 121, Col: 73}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -158,7 +161,7 @@ func DashboardLayout(s SidebarData) templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(s.AppName)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/dashboard_layout.templ`, Line: 128, Col: 67}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/dashboard_layout.templ`, Line: 131, Col: 67}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
@@ -181,7 +184,7 @@ func DashboardLayout(s SidebarData) templ.Component {
 			var templ_7745c5c3_Var6 templ.SafeURL
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinURLErrs(item.Path)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/dashboard_layout.templ`, Line: 138, Col: 26}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/dashboard_layout.templ`, Line: 141, Col: 26}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -213,7 +216,7 @@ func DashboardLayout(s SidebarData) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(item.Label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/dashboard_layout.templ`, Line: 142, Col: 20}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/dashboard_layout.templ`, Line: 145, Col: 20}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
@@ -231,7 +234,7 @@ func DashboardLayout(s SidebarData) templ.Component {
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(s.UserName)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/dashboard_layout.templ`, Line: 155, Col: 61}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/dashboard_layout.templ`, Line: 158, Col: 61}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
@@ -244,7 +247,7 @@ func DashboardLayout(s SidebarData) templ.Component {
 		var templ_7745c5c3_Var10 string
 		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(s.UserEmail)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/dashboard_layout.templ`, Line: 156, Col: 76}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/dashboard_layout.templ`, Line: 159, Col: 76}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 		if templ_7745c5c3_Err != nil {

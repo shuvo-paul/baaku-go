@@ -1,0 +1,198 @@
+package views
+
+import "strconv"
+
+// ---- admin: committee members CRUD (reference committee/*.blade.php) ----
+
+// CommitteeIndexData is the admin members list (reference
+// committee/index.blade.php).
+type CommitteeIndexData struct {
+	Sidebar SidebarData
+	Rows    []CommitteeMemberRow
+	Flash   string // member-created / member-updated / member-deleted
+	CSRF    string
+}
+
+// CommitteeMemberRow is one member in the admin table.
+type CommitteeMemberRow struct {
+	ID           int64
+	PositionName string
+	DisplayName  string
+	PhotoURL     string
+}
+
+// CommitteeMemberForm is the shared create/edit member form (reference
+// committee/create.blade.php + committee/edit.blade.php).
+type CommitteeMemberForm struct {
+	Sidebar       SidebarData
+	Title         string // "New Member" / "Edit Member"
+	ID            int64  // 0 = create
+	Positions     []Option
+	PositionID    string // raw form value for re-render
+	MemberType    string // registered / non_registered
+	UserIDValue   string // hidden picker input value
+	SelectedLabel string // picker display for a selected user
+	Name          string
+	ExistingPhoto string
+	Errors        map[string]string
+	CSRF          string
+}
+
+// committeeFormAction is the form target: POST /dashboard/committee (create)
+// or /dashboard/committee/{id} with a spoofed PUT (edit).
+func committeeFormAction(id int64) string {
+	if id == 0 {
+		return "/dashboard/committee"
+	}
+	return "/dashboard/committee/" + strconv.FormatInt(id, 10)
+}
+
+templ CommitteeIndexPage(d CommitteeIndexData) {
+	@DashboardLayout(d.Sidebar) {
+		<div class="space-y-6">
+			<section class="flex flex-wrap items-center justify-between gap-4">
+				<h1 class="font-serif text-3xl font-semibold text-navy">Committee</h1>
+				<div class="flex items-center gap-4">
+					<a href="/dashboard/positions" class="font-medium text-navy hover:text-gold">Manage Positions</a>
+					<a href="/dashboard/committee/create" class="btn-primary">New Member</a>
+				</div>
+			</section>
+			if d.Flash == "member-created" {
+				@StatusText("Committee member added successfully.")
+			} else if d.Flash == "member-updated" {
+				@StatusText("Committee member updated successfully.")
+			} else if d.Flash == "member-deleted" {
+				@StatusText("Committee member removed successfully.")
+			}
+			<section class="card">
+				if len(d.Rows) == 0 {
+					<p class="px-4 py-10 text-center text-on-surface-variant">No committee members yet.</p>
+				} else {
+					<p class="px-4 pt-4 text-sm text-on-surface-variant">Drag to reorder</p>
+					<table class="w-full text-sm" id="committee-table">
+						<thead class="border-b border-outline-variant/60 text-left label-caps text-on-surface-variant">
+							<tr>
+								<th class="w-8 px-2 py-3"></th>
+								<th class="px-4 py-3">Position</th>
+								<th class="px-4 py-3">Members</th>
+								<th class="px-4 py-3">Photo</th>
+								<th class="px-4 py-3 text-right">Actions</th>
+							</tr>
+						</thead>
+						<tbody
+							id="committee-tbody"
+							x-data
+							x-init="
+								import('/static/sortable.esm.js').then(function(m) {
+									new m.default($el, {
+										animation: 150,
+										handle: '.drag-handle',
+										onEnd: function(evt) {
+											var ids = Array.from($el.querySelectorAll('tr')).map(function(row) { return row.dataset.id; });
+											var xsrf = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/);
+											fetch('/dashboard/committee/reorder', {
+												method: 'POST',
+												credentials: 'same-origin',
+												headers: {
+													'Content-Type': 'application/json',
+													'X-XSRF-TOKEN': decodeURIComponent(xsrf ? xsrf[1] : ''),
+													'Accept': 'application/json'
+												},
+												body: JSON.stringify({ ids: ids })
+											}).then(function(res) {
+												if (!res.ok) { throw new Error('reorder failed: ' + res.status); }
+											}).catch(function(err) {
+												// Persist failed: put the row back so the list never lies about saved order.
+												console.error(err);
+												evt.from.insertBefore(evt.item, evt.from.children[evt.oldIndex]);
+											});
+										}
+									});
+								});
+							"
+						>
+							for _, row := range d.Rows {
+								<tr class="border-b border-outline-variant/40 last:border-0" data-id={ strconv.FormatInt(row.ID, 10) }>
+									<td class="px-2 py-3">
+										<span class="drag-handle cursor-grab text-on-surface-variant hover:text-navy">
+											<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+												<path stroke-linecap="round" stroke-linejoin="round" d="M4 8h16M4 16h16"/>
+											</svg>
+										</span>
+									</td>
+									<td class="px-4 py-3">{ row.PositionName }</td>
+									<td class="px-4 py-3 font-medium text-navy">{ row.DisplayName }</td>
+									<td class="px-4 py-3">
+										if row.PhotoURL != "" {
+											<img src={ row.PhotoURL } alt="" class="h-10 w-10 rounded-full object-cover"/>
+										} else {
+											<span class="text-on-surface-variant">—</span>
+										}
+									</td>
+									<td class="px-4 py-3 text-right">
+										<a href={ templ.SafeURL("/dashboard/committee/" + strconv.FormatInt(row.ID, 10) + "/edit") } class="mr-3 font-medium text-navy underline decoration-gold/50 underline-offset-2 hover:text-gold">Edit</a>
+										<form method="POST" action={ templ.SafeURL("/dashboard/committee/" + strconv.FormatInt(row.ID, 10)) } class="ml-2 inline" onsubmit="return confirm('Are you sure?')">
+											<input type="hidden" name="_method" value="DELETE"/>
+											@CSRFToken(d.CSRF)
+											<button type="submit" class="font-medium text-red-600 hover:underline">Delete</button>
+										</form>
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				}
+			</section>
+		</div>
+	}
+}
+
+templ CommitteeMemberFormPage(d CommitteeMemberForm) {
+	@DashboardLayout(d.Sidebar) {
+		<div class="max-w-2xl space-y-8">
+			<section>
+				<p class="label-caps text-gold">Committee</p>
+				<h1 class="mt-3 font-serif text-3xl sm:text-4xl font-semibold text-navy">{ d.Title }</h1>
+			</section>
+			<form method="POST" action={ templ.SafeURL(committeeFormAction(d.ID)) } enctype="multipart/form-data" class="card space-y-6">
+				@CSRFToken(d.CSRF)
+				if d.ID != 0 {
+					<input type="hidden" name="_method" value="PUT"/>
+				}
+				<div x-data={ "{ memberType: '" + d.MemberType + "' }" }>
+					@Select("Position", "position_id", d.Positions, templ.Attributes{"value": d.PositionID})
+					@ErrText(d.Errors["position_id"])
+					<fieldset class="mt-4 space-y-3">
+						<legend class="mb-1 text-sm font-medium text-gray-700">Member Type</legend>
+						<div class="flex gap-4">
+							<label class="flex items-center gap-2 text-sm">
+								<input type="radio" name="member_type" value="registered" x-model="memberType" class="text-navy focus:ring-gold/50"/>
+								Registered Member
+							</label>
+							<label class="flex items-center gap-2 text-sm">
+								<input type="radio" name="member_type" value="non_registered" x-model="memberType" class="text-navy focus:ring-gold/50"/>
+								Non-Registered Member
+							</label>
+						</div>
+					</fieldset>
+					<div x-show="memberType === 'registered'" x-cloak class="mt-4">
+						@UserSearch("user_id", "Search by name or email", "/dashboard/committee/users/search", d.UserIDValue, d.SelectedLabel)
+						@ErrText(d.Errors["user_id"])
+					</div>
+					<div x-show="memberType === 'non_registered'" x-cloak class="mt-4 space-y-4">
+						@OptionalInput("Member Name", "name", "text", templ.Attributes{"value": d.Name})
+						<div>
+							<span class="mb-1 block text-sm font-semibold text-gray-600">Photo</span>
+							@PhotoCropper("photo", "Select a photo", d.ExistingPhoto, "", "h-32 w-32", d.Errors["photo"])
+						</div>
+					</div>
+					@ErrText(d.Errors["name"])
+				</div>
+				<div class="flex items-center gap-4">
+					@SubmitButton(d.Title)
+					<a href="/dashboard/committee" class="text-sm text-on-surface-variant hover:text-navy">Back to Dashboard</a>
+				</div>
+			</form>
+		</div>
+	}
+}

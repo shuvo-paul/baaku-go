@@ -1,0 +1,124 @@
+package views
+
+import "strconv"
+
+// ---- admin: committee positions CRUD (reference positions/*.blade.php) ----
+
+// PositionsIndexData is the admin positions list (reference
+// positions/index.blade.php).
+type PositionsIndexData struct {
+	Sidebar SidebarData
+	Rows    []PositionRow
+	Flash   string // position-created / position-updated / position-deleted
+	CSRF    string
+}
+
+// PositionRow is one position in the admin table.
+type PositionRow struct {
+	ID          int64
+	Name        string
+	MemberCount int64
+}
+
+// memberCountLabel renders the trans_choice member_count string.
+func memberCountLabel(n int64) string {
+	if n == 1 {
+		return "1 member"
+	}
+	return strconv.FormatInt(n, 10) + " members"
+}
+
+// PositionForm is the shared create/edit position form (reference
+// positions/create.blade.php + positions/edit.blade.php).
+type PositionForm struct {
+	Sidebar SidebarData
+	Title   string // "New Position" / "Edit Position"
+	ID      int64  // 0 = create
+	Name    string
+	Errors  map[string]string
+	CSRF    string
+}
+
+// positionFormAction is the form target: POST /dashboard/positions (create)
+// or /dashboard/positions/{id} with a spoofed PUT (edit).
+func positionFormAction(id int64) string {
+	if id == 0 {
+		return "/dashboard/positions"
+	}
+	return "/dashboard/positions/" + strconv.FormatInt(id, 10)
+}
+
+templ PositionsIndexPage(d PositionsIndexData) {
+	@DashboardLayout(d.Sidebar) {
+		<div class="space-y-6">
+			<section class="flex flex-wrap items-center justify-between gap-4">
+				<h1 class="font-serif text-3xl font-semibold text-navy">Manage Positions</h1>
+				<div class="flex items-center gap-4">
+					<a href="/dashboard/committee" class="font-medium text-navy hover:text-gold">← Back to Committee</a>
+					<a href="/dashboard/positions/create" class="btn-primary">New Position</a>
+				</div>
+			</section>
+			if d.Flash == "position-created" {
+				@StatusText("Position created successfully.")
+			} else if d.Flash == "position-updated" {
+				@StatusText("Position updated successfully.")
+			} else if d.Flash == "position-deleted" {
+				@StatusText("Position deleted successfully.")
+			}
+			<section class="card">
+				if len(d.Rows) == 0 {
+					<p class="px-4 py-10 text-center text-on-surface-variant">No positions yet.</p>
+				} else {
+					<table class="w-full text-sm">
+						<thead class="border-b border-outline-variant/60 text-left label-caps text-on-surface-variant">
+							<tr>
+								<th class="px-4 py-3">Position Name</th>
+								<th class="px-4 py-3">Members</th>
+								<th class="px-4 py-3 text-right">Actions</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, row := range d.Rows {
+								<tr class="border-b border-outline-variant/40 last:border-0">
+									<td class="px-4 py-3 font-medium text-navy">{ row.Name }</td>
+									<td class="px-4 py-3 text-on-surface-variant">{ memberCountLabel(row.MemberCount) }</td>
+									<td class="px-4 py-3 text-right">
+										<a href={ templ.SafeURL("/dashboard/positions/" + strconv.FormatInt(row.ID, 10) + "/edit") } class="mr-3 font-medium text-navy underline decoration-gold/50 underline-offset-2 hover:text-gold">Edit</a>
+										<form method="POST" action={ templ.SafeURL("/dashboard/positions/" + strconv.FormatInt(row.ID, 10)) } class="ml-2 inline" onsubmit="return confirm('Are you sure?')">
+											<input type="hidden" name="_method" value="DELETE"/>
+											@CSRFToken(d.CSRF)
+											<button type="submit" class="font-medium text-red-600 hover:underline">Delete</button>
+										</form>
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				}
+			</section>
+		</div>
+	}
+}
+
+templ PositionFormPage(d PositionForm) {
+	@DashboardLayout(d.Sidebar) {
+		<div class="max-w-2xl space-y-8">
+			<section>
+				<p class="label-caps text-gold">Committee</p>
+				<h1 class="mt-3 font-serif text-3xl sm:text-4xl font-semibold text-navy">{ d.Title }</h1>
+			</section>
+			<form method="POST" action={ templ.SafeURL(positionFormAction(d.ID)) } class="card space-y-6">
+				@CSRFToken(d.CSRF)
+				if d.ID != 0 {
+					<input type="hidden" name="_method" value="PUT"/>
+				}
+				@TextInput("Position Name", "name", "text", templ.Attributes{"value": d.Name})
+				@ErrText(d.Errors["name"])
+				<div class="flex items-center gap-4">
+					@SubmitButton(d.Title)
+					<a href="/dashboard/positions" class="text-sm text-on-surface-variant hover:text-navy">Back to Committee</a>
+				</div>
+			</form>
+		</div>
+	}
+}

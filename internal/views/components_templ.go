@@ -1554,7 +1554,12 @@ const suggestXDataFormat = `{
 	}
 }`
 
-func SuggestField(label string, suggestions []string, attrs templ.Attributes) templ.Component {
+// UserSearch is the committee member picker (reference
+// livewire/user-search.blade.php): a debounced live search over active users.
+// The Livewire wire:model/live becomes an Alpine fetch against
+// /dashboard/committee/users/search. searchURL is that endpoint; label is the
+// field label; selectedID/selectedLabel preselect a member (edit form).
+func UserSearch(name, label, searchURL, selectedID, selectedLabel string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -1580,28 +1585,160 @@ func SuggestField(label string, suggestions []string, attrs templ.Attributes) te
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var74 string
-		templ_7745c5c3_Var74, templ_7745c5c3_Err = templ.ResolveAttributeValue(suggestXData(suggestions))
+		templ_7745c5c3_Var74, templ_7745c5c3_Err = templ.ResolveAttributeValue(userSearchData(searchURL, selectedID, selectedLabel))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/components.templ`, Line: 402, Col: 40}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/components.templ`, Line: 407, Col: 63}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var74)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 109, "\" class=\"relative\"><label class=\"mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 109, "\" @click.outside=\"open = false\" @keydown.escape.window=\"open = false\"><input type=\"hidden\" name=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var75 string
-		templ_7745c5c3_Var75, templ_7745c5c3_Err = templ.JoinStringErrs(label)
+		templ_7745c5c3_Var75, templ_7745c5c3_Err = templ.ResolveAttributeValue(name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/components.templ`, Line: 404, Col: 10}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/components.templ`, Line: 411, Col: 34}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var75))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var75)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 110, "</label> <input x-ref=\"input\" type=\"text\" autocomplete=\"off\" class=\"field-input\" @focus=\"open = true; highlighted = -1\" @blur=\"open = false; highlighted = -1\" @input=\"onInput($event)\" @keydown=\"onKeydown($event)\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 110, "\" :value=\"selectedID\"> ")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if label != "" {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 111, "<label class=\"mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var76 string
+			templ_7745c5c3_Var76, templ_7745c5c3_Err = templ.JoinStringErrs(label)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/components.templ`, Line: 413, Col: 89}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var76))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 112, "</label>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 113, "<template x-if=\"selected\"><div class=\"flex items-center gap-3 rounded-md border border-gray-300 bg-gray-50 px-3 py-2\"><span class=\"text-sm font-medium text-navy\" x-text=\"selectedLabel\"></span> <button type=\"button\" @click=\"clear()\" class=\"ml-auto text-xs text-red-600 hover:text-red-900\">Delete</button></div></template><template x-if=\"!selected\"><div class=\"relative\"><input type=\"text\" x-ref=\"searchInput\" x-model=\"query\" @input.debounce.300ms=\"search()\" @focus=\"open = true\" autocomplete=\"off\" placeholder=\"Search by name or email\" class=\"field-input\"><ul x-show=\"open && results.length\" x-cloak class=\"absolute z-10 mt-1 w-full rounded-md border border-gray-200 bg-white shadow-lg max-h-60 overflow-auto\"><template x-for=\"r in results\" :key=\"r.id\"><li><button type=\"button\" @mousedown.prevent=\"select(r)\" class=\"block w-full px-3 py-2 text-left text-sm hover:bg-surface-container\"><span class=\"block font-medium text-navy\" x-text=\"r.name\"></span> <span class=\"block text-xs text-on-surface-variant\" x-text=\"r.email\"></span></button></li></template></ul><ul x-show=\"open && searched && query.length >= 2 && !results.length\" x-cloak class=\"absolute z-10 mt-1 w-full rounded-md border border-gray-200 bg-white shadow-lg\"><li class=\"px-3 py-2 text-sm text-gray-500\">No members found.</li></ul></div></template></div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+// userSearchData is the Alpine state for the picker, mirroring the reference
+// Livewire component's properties and updatedQuery/select/clear.
+func userSearchData(searchURL, selectedID, selectedLabel string) string {
+	selected := "false"
+	if selectedID != "" {
+		selected = "true"
+	}
+	return fmt.Sprintf(`{
+		url: %s,
+		selected: %s,
+		selectedID: %s,
+		selectedLabel: %s,
+		query: '',
+		results: [],
+		open: false,
+		searched: false,
+		search() {
+			if (this.query.trim().length < 2) {
+				this.results = [];
+				this.searched = false;
+				return;
+			}
+			fetch(this.url + '?q=' + encodeURIComponent(this.query))
+				.then((r) => r.json())
+				.then((rows) => { this.results = rows; this.searched = true; this.open = true; });
+		},
+		select(r) {
+			this.selectedID = String(r.id);
+			this.selectedLabel = r.name + ' \u2014 ' + r.email;
+			this.selected = true;
+			this.query = '';
+			this.results = [];
+			this.open = false;
+			this.searched = false;
+		},
+		clear() {
+			this.selectedID = '';
+			this.selectedLabel = '';
+			this.selected = false;
+			this.query = '';
+			this.results = [];
+			this.searched = false;
+			this.$nextTick(() => this.$refs.searchInput && this.$refs.searchInput.focus());
+		}
+	}`, jsQuote(searchURL), selected, jsQuote(selectedID), jsQuote(selectedLabel))
+}
+
+// jsQuote marshals a string to a quoted JS literal (JSONString returns two
+// values, which fmt.Sprintf can't take directly).
+func jsQuote(s string) string {
+	b, _ := json.Marshal(s)
+	return string(b)
+}
+
+func SuggestField(label string, suggestions []string, attrs templ.Attributes) templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var77 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var77 == nil {
+			templ_7745c5c3_Var77 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 114, "<div x-data=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var78 string
+		templ_7745c5c3_Var78, templ_7745c5c3_Err = templ.ResolveAttributeValue(suggestXData(suggestions))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/components.templ`, Line: 506, Col: 40}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var78)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 115, "\" class=\"relative\"><label class=\"mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var79 string
+		templ_7745c5c3_Var79, templ_7745c5c3_Err = templ.JoinStringErrs(label)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/components.templ`, Line: 508, Col: 10}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var79))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 116, "</label> <input x-ref=\"input\" type=\"text\" autocomplete=\"off\" class=\"field-input\" @focus=\"open = true; highlighted = -1\" @blur=\"open = false; highlighted = -1\" @input=\"onInput($event)\" @keydown=\"onKeydown($event)\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1609,7 +1746,7 @@ func SuggestField(label string, suggestions []string, attrs templ.Attributes) te
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 111, "><div x-show=\"open && filtered.length\" x-cloak role=\"listbox\" class=\"absolute inset-x-0 top-full z-10 mt-1 overflow-hidden rounded-md border border-gray-300 bg-white py-1 shadow-lg\"><template x-for=\"(s, i) in filtered\" :key=\"s\"><button type=\"button\" role=\"option\" :aria-selected=\"i === highlighted ? 'true' : 'false'\" @mousedown.prevent=\"select(s)\" @mousemove=\"highlighted = i\" :class=\"i === highlighted ? 'bg-navy text-white' : 'text-gray-700'\" class=\"block w-full px-3 py-2 text-left text-sm\" x-text=\"s\"></button></template></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 117, "><div x-show=\"open && filtered.length\" x-cloak role=\"listbox\" class=\"absolute inset-x-0 top-full z-10 mt-1 overflow-hidden rounded-md border border-gray-300 bg-white py-1 shadow-lg\"><template x-for=\"(s, i) in filtered\" :key=\"s\"><button type=\"button\" role=\"option\" :aria-selected=\"i === highlighted ? 'true' : 'false'\" @mousedown.prevent=\"select(s)\" @mousemove=\"highlighted = i\" :class=\"i === highlighted ? 'bg-navy text-white' : 'text-gray-700'\" class=\"block w-full px-3 py-2 text-left text-sm\" x-text=\"s\"></button></template></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
