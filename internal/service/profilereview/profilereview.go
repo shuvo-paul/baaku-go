@@ -3,13 +3,14 @@
 // profile re-enters the pending review queue.
 //
 // The reference also logs a spatie activity row ('profile resubmitted for
-// review'); the activity-log writer lands in the admin/activity wave, so this
-// port only performs the state transition.
+// review'); this port writes it through the activitylog service after the
+// state flip.
 package profilereview
 
 import (
 	"context"
 
+	"github.com/shuvo-paul/baaku/internal/service/activitylog"
 	"github.com/shuvo-paul/baaku/internal/service/user"
 )
 
@@ -19,11 +20,19 @@ type Store interface {
 	SetState(ctx context.Context, userID int64, state user.UserState) error
 }
 
-type Service struct {
-	store Store
+// ActivityLogger records one activity row; *activitylog.Service satisfies it.
+type ActivityLogger interface {
+	Log(ctx context.Context, e activitylog.Entry) error
 }
 
-func New(store Store) *Service { return &Service{store: store} }
+type Service struct {
+	store      Store
+	activities ActivityLogger
+}
+
+func New(store Store, activities ActivityLogger) *Service {
+	return &Service{store: store, activities: activities}
+}
 
 // Submit flips a rejected user back to pending; every other state is a no-op
 // (reference: only UserState::Rejected triggers the update).
@@ -35,5 +44,16 @@ func (s *Service) Submit(ctx context.Context, userID int64) error {
 	if st != user.StateRejected {
 		return nil
 	}
-	return s.store.SetState(ctx, userID, user.StatePending)
+	if err := s.store.SetState(ctx, userID, user.StatePending); err != nil {
+		return err
+	}
+	// Reference logs after the flip: activity('profile')->performedOn($user)
+	// ->event('resubmitted')->log('profile resubmitted for review').
+	return s.activities.Log(ctx, activitylog.Entry{
+		LogName:     "profile",
+		Event:       "resubmitted",
+		Description: "profile resubmitted for review",
+		Subject:     &activitylog.Subject{Kind: activitylog.KindUser, ID: userID},
+		Causer:      &activitylog.Causer{ID: userID},
+	})
 }

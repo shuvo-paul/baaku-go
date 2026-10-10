@@ -1,0 +1,163 @@
+package views
+
+import (
+	"fmt"
+	"time"
+)
+
+// ActivityPageData is the admin activity ledger (reference
+// resources/views/activity-log/index.blade.php inside layouts/dashboard).
+type ActivityPageData struct {
+	Sidebar SidebarData
+	Items   []ActivityItem
+	HasMore bool
+	Page    int // 1-based, simplePaginate semantics
+}
+
+// ActivityItem is one ledger entry for display.
+type ActivityItem struct {
+	Domain       string // "Membership" / "Roles" / "Profiles"
+	Verb         string // "Role updated", "Profile submitted", …
+	Actor        string // causer name, or "System"
+	SubjectLabel string // "member" / "role" / "profile"
+	SubjectName  string
+	SubjectURL   string // "" until the subject's dashboard route exists
+	Properties   []ActivityProp
+	CreatedAt    time.Time
+	ISOTime      string
+}
+
+// ActivityProp is one rendered properties pair.
+type ActivityProp struct {
+	Key   string
+	Value string
+}
+
+// humanTime approximates Carbon's diffForHumans for the ledger timestamps.
+func humanTime(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	d := time.Since(t)
+	switch {
+	case d < time.Minute:
+		return "just now"
+	case d < time.Hour:
+		return pluralize(int(d.Minutes()), "minute") + " ago"
+	case d < 24*time.Hour:
+		return pluralize(int(d.Hours()), "hour") + " ago"
+	case d < 30*24*time.Hour:
+		return pluralize(int(d.Hours()/24), "day") + " ago"
+	default:
+		return t.Format("Jan 2, 2006")
+	}
+}
+
+func pluralize(n int, unit string) string {
+	if n == 1 {
+		return fmt.Sprintf("1 %s", unit)
+	}
+	return fmt.Sprintf("%d %ss", n, unit)
+}
+
+templ ActivitiesPage(d ActivityPageData) {
+	@DashboardLayout(d.Sidebar) {
+		<div class="space-y-12">
+			<section class="flex flex-wrap items-end justify-between gap-6">
+				<div class="max-w-2xl">
+					<p class="label-caps text-gold">The Ledger</p>
+					<h1 class="mt-3 font-serif text-3xl sm:text-4xl font-semibold text-navy">
+						Activity Log
+					</h1>
+					<p class="mt-4 text-lg leading-8 text-on-surface-variant">
+						A record of membership decisions, role changes, and profile submissions across the network.
+					</p>
+				</div>
+			</section>
+			if len(d.Items) == 0 {
+				<section class="card flex flex-col items-center justify-center px-6 py-20 text-center">
+					<div class="flex h-12 w-12 items-center justify-center rounded-lg bg-navy/5" aria-hidden="true">
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-navy" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+						</svg>
+					</div>
+					<h2 class="mt-6 font-serif text-xl font-semibold text-navy">
+						No activity yet
+					</h2>
+					<p class="mt-2 max-w-md text-sm leading-6 text-on-surface-variant">
+						Activity appears here once members sign in and work begins — state transitions, role changes, and profile submissions.
+					</p>
+				</section>
+			} else {
+				<section aria-label="Activity Log">
+					<ol class="space-y-6">
+						for _, item := range d.Items {
+							<li class="relative border-l-4 border-gold pl-8">
+								<div class="card p-6">
+									<div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+										<p class="label-caps text-gold">{ item.Domain }</p>
+										<time datetime={ item.ISOTime } class="text-sm text-on-surface-variant">
+											{ humanTime(item.CreatedAt) }
+										</time>
+									</div>
+									<p class="mt-3 font-serif text-lg font-semibold text-navy">
+										{ item.Verb }
+									</p>
+									<p class="mt-2 text-sm leading-6 text-on-surface-variant">
+										<span class="font-semibold text-navy">{ item.Actor }</span>
+										if item.SubjectName != "" {
+											{ " " }updated the { " " }{ item.SubjectLabel }{ " " }
+											if item.SubjectURL != "" {
+												<a href={ templ.SafeURL(item.SubjectURL) } class="font-semibold text-navy underline decoration-gold/50 underline-offset-2 transition-colors hover:text-gold">
+													{ item.SubjectName }
+												</a>
+											} else {
+												<span class="font-semibold text-navy">{ item.SubjectName }</span>
+											}
+										}
+									</p>
+									if len(item.Properties) > 0 {
+										<dl class="mt-4 grid gap-x-8 gap-y-2 sm:grid-cols-2">
+											for _, p := range item.Properties {
+												<div class="flex items-baseline gap-2">
+													<dt class="label-caps shrink-0 text-on-surface-variant">{ p.Key }</dt>
+													<dd class="truncate text-sm text-on-surface-variant">{ p.Value }</dd>
+												</div>
+											}
+										</dl>
+									}
+								</div>
+							</li>
+						}
+					</ol>
+					@activityPagination(d.Page, d.HasMore)
+				</section>
+			}
+		</div>
+	}
+}
+
+// activityPagination is reference resources/views/pagination/simple.blade.php
+// (Newer/Older, simplePaginate).
+templ activityPagination(page int, hasMore bool) {
+	<nav role="navigation" aria-label="Pagination" class="mt-10 flex items-center justify-between">
+		if page <= 1 {
+			<span class="btn-secondary pointer-events-none opacity-40" aria-disabled="true">
+				<span aria-hidden="true">←</span> Newer
+			</span>
+		} else {
+			<a href={ templ.SafeURL(fmt.Sprintf("/dashboard/activity-log?page=%d", page-1)) } rel="prev" class="btn-secondary">
+				<span aria-hidden="true">←</span> Newer
+			</a>
+		}
+		if hasMore {
+			<a href={ templ.SafeURL(fmt.Sprintf("/dashboard/activity-log?page=%d", page+1)) } rel="next" class="btn-secondary">
+				Older <span aria-hidden="true">→</span>
+			</a>
+		} else {
+			<span class="btn-secondary pointer-events-none opacity-40" aria-disabled="true">
+				Older <span aria-hidden="true">→</span>
+			</span>
+		}
+	</nav>
+}

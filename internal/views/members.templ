@@ -1,0 +1,297 @@
+package views
+
+import "strconv"
+
+templ MembersPage(d MembersPageData) {
+	@DashboardLayout(d.Sidebar) {
+		<div class="space-y-8">
+			if d.IsAdmin {
+				<form method="GET" action="/dashboard/users" class="card space-y-4">
+					<div class="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_176px]">
+						@TextInput("Search members by name or email", "search", "search", templ.Attributes{"value": d.Search, "placeholder": "Search members by name or email"})
+						<div>
+							<label for="filter" class="mb-1 block text-sm font-medium text-gray-700">Status</label>
+							<select name="filter" id="filter" class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-on-surface shadow-sm transition-colors focus:border-navy focus:outline-none focus:ring-2 focus:ring-gold/50" onchange="this.form.submit()">
+								for _, f := range d.FilterOptions() {
+									if d.Filter == f.Value {
+										<option value={ templ.URL(f.Value) } selected>{ f.Label }</option>
+									} else {
+										<option value={ templ.URL(f.Value) }>{ f.Label }</option>
+									}
+								}
+							</select>
+						</div>
+					</div>
+					<button type="submit" class="btn-secondary">Search</button>
+				</form>
+				<p>{ d.Summary() }</p>
+			}
+
+			<div class="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+				if len(d.Members) == 0 {
+					<p class="col-span-full text-sm text-on-surface-variant">{ d.EmptyMessage() }</p>
+				} else {
+					for _, m := range d.Members {
+						@memberCard(m)
+					}
+				}
+			</div>
+			if d.HasPrev || d.HasNext {
+				<nav role="navigation" aria-label="Pagination" class="flex items-center justify-between">
+					if d.HasPrev {
+						<a href={ templ.SafeURL(d.PrevHref()) } rel="prev" class="btn-secondary">Prev</a>
+					} else {
+						<span class="btn-secondary opacity-40">Prev</span>
+					}
+					if d.HasNext {
+						<a href={ templ.SafeURL(d.NextHref()) } rel="next" class="btn-secondary">Next</a>
+					} else {
+						<span class="btn-secondary opacity-40">Next</span>
+					}
+				</nav>
+			}
+		</div>
+	}
+}
+
+
+templ memberCard(m MemberCardView) {
+	<a href={ templ.SafeURL("/dashboard/users/" + strconv.FormatInt(m.ID, 10)) } class="card group flex h-full flex-col">
+		<div class="flex items-center gap-4">
+			if m.PhotoURL != "" {
+				<img src={ templ.SafeURL(m.PhotoURL) } alt={ m.Name } class="h-16 w-16 rounded-lg object-cover"/>
+			} else {
+				<div class="flex h-16 w-16 items-center justify-center rounded-lg bg-surface-container text-lg font-semibold text-navy">{ m.Initials }</div>
+			}
+			<div class="min-w-0 flex-1">
+				<h2 class="truncate text-lg font-semibold text-navy">{ m.Name }</h2>
+				<p class="truncate text-sm text-on-surface-variant">{ m.Email }</p>
+			</div>
+			<span class={ "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium shrink-0", stateBadge(m.State) }>{ stateLabel(m.State) }</span>
+		</div>
+		<div class="flex-1">
+			<p class="mt-3 text-sm text-on-surface-variant">{ m.Roles }</p>
+			if m.Education != "" {
+				<p class="mt-1 text-sm text-on-surface-variant">{ m.Education }</p>
+			}
+			if m.Career != "" {
+				<p class="mt-1 text-sm text-on-surface-variant">{ m.Career }</p>
+			}
+		</div>
+		<div class="mt-4 border-t border-outline-variant/60 pt-4">
+			<span class="text-navy transition-colors group-hover:text-gold">{ m.ActionLabel }</span>
+		</div>
+	</a>
+}
+
+templ MemberShowPage(d MemberShowPageData) {
+	@DashboardLayout(d.Sidebar) {
+		<div class="space-y-8">
+			<a href="/dashboard/users" class="inline-block text-sm text-navy hover:text-gold">← Back to Members</a>
+			if d.Err != "" {
+				<section>
+					@ErrText(d.Err)
+				</section>
+			}
+			<div class="grid gap-6 lg:grid-cols-12">
+				<aside class="space-y-6 lg:order-2 lg:col-span-4">
+					<div class="card p-6">
+						<div class="flex items-center gap-5">
+							if d.Member.PhotoURL != "" {
+								<img src={ templ.SafeURL(d.Member.PhotoURL) } alt={ d.Member.Name } class="h-28 w-24 shrink-0 rounded-lg object-cover"/>
+							} else {
+								<div class="flex h-28 w-24 shrink-0 items-center justify-center rounded-lg bg-surface-container font-serif text-2xl font-semibold text-navy">{ d.Member.Initials }</div>
+							}
+							<div class="min-w-0">
+								if d.Member.CurrentJobTitle != "" {
+									<p class="label-caps text-gold">{ d.Member.CurrentJobTitle }</p>
+								}
+								<h1 class="mt-1 font-serif text-2xl font-semibold leading-tight text-navy">{ d.Member.Name }</h1>
+								<p class="mt-1 truncate text-sm text-on-surface-variant">{ d.Member.Email }</p>
+								if d.IsAdmin && d.Member.Phone != "" {
+									<p class="mt-1 truncate text-sm text-on-surface-variant">{ d.Member.Phone }</p>
+								}
+							</div>
+						</div>
+						<div class="mt-5 flex flex-wrap items-center gap-2">
+							<span class={ "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium", stateBadge(d.Member.State) }>{ stateLabel(d.Member.State) }</span>
+							for _, role := range d.Member.Roles {
+								<span class="rounded bg-surface-container px-2 py-0.5 text-xs font-medium text-navy">{ role }</span>
+							}
+						</div>
+						<dl class="mt-6 space-y-3 border-t border-outline-variant/60 pt-5 text-sm">
+							<div class="flex items-start justify-between gap-4">
+								<dt class="shrink-0 text-on-surface-variant">Member since</dt>
+								<dd class="text-right text-navy">{ d.Member.MemberSince }</dd>
+							</div>
+						</dl>
+						<div class="mt-6 border-t border-outline-variant/60 pt-5">
+							<p class="label-caps text-gold">Profile Details</p>
+							<dl class="mt-3 space-y-3 text-sm">
+								if d.Member.DOB != "" {
+									<div>
+										<dt class="text-on-surface-variant">Date of Birth</dt>
+										<dd class="mt-0.5 text-navy">{ d.Member.DOB }</dd>
+									</div>
+								}
+								if d.Member.Gender != "" {
+									<div>
+										<dt class="text-on-surface-variant">Gender</dt>
+										<dd class="mt-0.5 text-navy">{ d.Member.Gender }</dd>
+									</div>
+								}
+								if d.Member.BloodGroup != "" {
+									<div>
+										<dt class="text-on-surface-variant">Blood Group</dt>
+										<dd class="mt-0.5 text-navy">{ d.Member.BloodGroup }</dd>
+									</div>
+								}
+								if d.IsAdmin && d.Member.PresentAddress != "" {
+									<div>
+										<dt class="text-on-surface-variant">Present Address</dt>
+										<dd class="mt-0.5 text-navy">{ d.Member.PresentAddress }</dd>
+									</div>
+								}
+								if d.IsAdmin && d.Member.PermanentAddress != "" {
+									<div>
+										<dt class="text-on-surface-variant">Permanent Address</dt>
+										<dd class="mt-0.5 text-navy">{ d.Member.PermanentAddress }</dd>
+									</div>
+								}
+								if d.Member.Website != "" {
+									<div>
+										<dt class="text-on-surface-variant">Website</dt>
+										<dd class="mt-0.5 break-all text-navy">
+											<a href={ templ.SafeURL(d.Member.WebsiteURL) } target="_blank" rel="noopener noreferrer" class="hover:text-gold">{ d.Member.Website }</a>
+										</dd>
+									</div>
+								}
+							</dl>
+						</div>
+						if len(d.Member.Socials) > 0 {
+							<div class="mt-6 border-t border-outline-variant/60 pt-5">
+								<p class="label-caps text-gold">Social Links</p>
+								<div class="mt-3 flex items-center gap-3">
+									for _, s := range d.Member.Socials {
+										<a href={ templ.SafeURL(s.URL) } target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 rounded-lg border border-outline-variant/60 px-3 py-2 text-sm font-medium text-navy transition-colors hover:border-gold hover:text-gold">
+											{ s.Label }
+										</a>
+									}
+								</div>
+							</div>
+						}
+					</div>
+					if d.IsAdmin && d.Member.EmergencyName != "" {
+						<div class="card p-6">
+							<p class="label-caps text-gold">Emergency Contact</p>
+							<p class="mt-3 text-sm font-semibold text-navy">{ d.Member.EmergencyName }</p>
+							if d.Member.EmergencyRelation != "" {
+								<p class="mt-0.5 text-sm text-on-surface-variant">{ d.Member.EmergencyRelation }</p>
+							}
+							if d.Member.EmergencyPhone != "" {
+								<p class="mt-0.5 text-sm text-on-surface-variant">{ d.Member.EmergencyPhone }</p>
+							}
+						</div>
+					}
+				</aside>
+				<div class="space-y-6 lg:order-1 lg:col-span-8">
+					<section class="card p-6 lg:p-8">
+						<h2 class="font-serif text-2xl font-semibold text-navy">Education</h2>
+						<div class="mt-6 space-y-6">
+							if len(d.Member.Educations) == 0 {
+								<p class="text-sm text-on-surface-variant">No education records found.</p>
+							} else {
+								for _, e := range d.Member.Educations {
+									<div class="border-t border-outline-variant/60 pt-5 first:border-t-0 first:pt-0">
+										<p class="label-caps text-gold">{ e.Period }</p>
+										<h3 class="mt-1 font-serif text-lg font-semibold text-navy">{ e.Institution }</h3>
+										<p class="mt-0.5 text-on-surface-variant">{ e.LevelLine }</p>
+										if e.StudentID != "" {
+											<p class="mt-0.5 text-sm text-on-surface-variant">Student ID: { e.StudentID }</p>
+										}
+									</div>
+								}
+							}
+						</div>
+					</section>
+					<section class="card p-6 lg:p-8">
+						<h2 class="font-serif text-2xl font-semibold text-navy">Career</h2>
+						<div class="mt-6 space-y-6">
+							if len(d.Member.Careers) == 0 {
+								<p class="text-sm text-on-surface-variant">No career records found.</p>
+							} else {
+								for _, c := range d.Member.Careers {
+									<div class="border-t border-outline-variant/60 pt-5 first:border-t-0 first:pt-0">
+										<p class="label-caps text-gold">{ c.Period }</p>
+										<div class="mt-1 flex flex-wrap items-center gap-2">
+											<h3 class="font-serif text-lg font-semibold text-navy">{ c.Title }</h3>
+											<span class="rounded bg-surface-container px-2 py-0.5 text-xs font-medium text-navy">{ c.TypeLabel }</span>
+										</div>
+										<p class="mt-0.5 text-on-surface-variant">{ c.Company }</p>
+										if c.Meta != "" {
+											<p class="mt-0.5 text-sm text-on-surface-variant">{ c.Meta }</p>
+										}
+										if c.Description != "" {
+											<p class="mt-3 max-w-prose text-on-surface-variant">{ c.Description }</p>
+										}
+									</div>
+								}
+							}
+						</div>
+					</section>
+					<section class="card p-6 lg:p-8">
+						<h2 class="font-serif text-2xl font-semibold text-navy">Membership</h2>
+						<div class="mt-6 flex flex-wrap items-center gap-3">
+							<span class="text-sm text-on-surface-variant">Current state</span>
+							<span class={ "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium", stateBadge(d.Member.State) }>{ stateLabel(d.Member.State) }</span>
+						</div>
+						if d.ShowControls {
+							<div class="mt-5 space-y-3">
+								if len(d.Transitions) == 0 {
+									<p class="text-sm text-on-surface-variant">No further actions available.</p>
+								} else {
+									for _, t := range d.Transitions {
+										<div class="flex flex-col gap-3 rounded-lg bg-surface-container/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+											<p class="text-sm text-on-surface-variant">{ t.Description }</p>
+											@stateTransitionControl(t)
+										</div>
+									}
+								}
+							</div>
+						}
+					</section>
+				</div>
+			</div>
+		</div>
+	}
+}
+
+templ stateTransitionControl(t TransitionView) {
+	if t.NeedsReason {
+		<form method="POST" action={ templ.SafeURL(t.Target) } class="state-transition" x-data="{ open: false, reason: '' }">
+			@CSRFToken(t.CSRF)
+			<input type="hidden" name="_method" value="PUT"/>
+			<input type="hidden" name="state" value={ templ.URL(t.Value) }/>
+			<button type="button" @click="open = true" class="btn-secondary">{ t.Label }</button>
+			<div x-show="open" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4">
+				<div class="absolute inset-0 bg-navy/40 backdrop-blur-sm" @click="open = false" aria-hidden="true"></div>
+				<div class="relative w-full max-w-lg rounded-lg border border-outline-variant/60 bg-white p-6 shadow-xl">
+					<h3 class="font-serif text-lg font-semibold text-navy">{ t.Label }</h3>
+					<p class="mt-2 text-sm text-on-surface-variant">Please provide a reason for this action.</p>
+					<textarea x-model="reason" name="reason" rows="3" maxlength="2000" required class="mt-4 w-full rounded-lg border border-outline-variant/60 bg-surface px-3 py-2 text-sm text-navy placeholder:text-on-surface-variant/50 focus:border-gold focus:ring-1 focus:ring-gold/30" placeholder="Explain why this action is being taken…"></textarea>
+					<div class="mt-4 flex items-center justify-end gap-3">
+						<button type="button" @click="open = false" class="btn-secondary">Cancel</button>
+						<button type="submit" class="btn-primary">Confirm</button>
+					</div>
+				</div>
+			</div>
+		</form>
+	} else {
+		<form method="POST" action={ templ.SafeURL(t.Target) } class="inline">
+			@CSRFToken(t.CSRF)
+			<input type="hidden" name="_method" value="PUT"/>
+			<input type="hidden" name="state" value={ templ.URL(t.Value) }/>
+			<button type="submit" class="btn-secondary">{ t.Label }</button>
+		</form>
+	}
+}

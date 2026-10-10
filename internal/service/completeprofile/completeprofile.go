@@ -8,6 +8,7 @@ package completeprofile
 import (
 	"context"
 
+	"github.com/shuvo-paul/baaku/internal/service/activitylog"
 	"github.com/shuvo-paul/baaku/internal/service/register"
 )
 
@@ -34,12 +35,20 @@ type Store interface {
 	UpsertDetails(ctx context.Context, userID int64, gender, bloodGroup, presentAddress, permanentAddress string) error
 }
 
-// Service completes a user's profile.
-type Service struct {
-	profiles Store
+// ActivityLogger records one activity row; *activitylog.Service satisfies it.
+type ActivityLogger interface {
+	Log(ctx context.Context, e activitylog.Entry) error
 }
 
-func New(store Store) *Service { return &Service{profiles: store} }
+// Service completes a user's profile.
+type Service struct {
+	profiles   Store
+	activities ActivityLogger
+}
+
+func New(store Store, activities ActivityLogger) *Service {
+	return &Service{profiles: store, activities: activities}
+}
 
 // Complete validates in exactly like the reference store (required + enum
 // membership + max:255) and persists via the profile repo.
@@ -47,7 +56,19 @@ func (s *Service) Complete(ctx context.Context, userID int64, in Input) error {
 	if errs := validate(in); len(errs) > 0 {
 		return errs
 	}
-	return s.profiles.UpsertDetails(ctx, userID, in.Gender, in.BloodGroup, in.PresentAddress, in.PermanentAddress)
+	if err := s.profiles.UpsertDetails(ctx, userID, in.Gender, in.BloodGroup, in.PresentAddress, in.PermanentAddress); err != nil {
+		return err
+	}
+	// Reference logs after the store: activity('profile')->performedOn($user)
+	// ->event('submitted')->log('profile submitted'). The causer is the
+	// submitting member themselves.
+	return s.activities.Log(ctx, activitylog.Entry{
+		LogName:     "profile",
+		Event:       "submitted",
+		Description: "profile submitted",
+		Subject:     &activitylog.Subject{Kind: activitylog.KindUser, ID: userID},
+		Causer:      &activitylog.Causer{ID: userID},
+	})
 }
 
 // validate mirrors the controller's validator (reference ProfileDetailsRequest

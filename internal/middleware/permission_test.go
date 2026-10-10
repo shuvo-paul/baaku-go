@@ -70,3 +70,62 @@ func TestRequirePermissionStoreError(t *testing.T) {
 		t.Errorf("status = %d, want %d", got, http.StatusInternalServerError)
 	}
 }
+
+type fakeLister struct {
+	names map[int64][]string
+	err   error
+}
+
+func (f *fakeLister) UserPermissionNames(_ context.Context, userID int64) ([]string, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.names[userID], nil
+}
+
+func TestLoadPermissionsStashesNames(t *testing.T) {
+	lister := &fakeLister{names: map[int64][]string{1: {"view activity log", "manage roles"}}}
+	var got []string
+	h := middleware.LoadPermissions(lister)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = middleware.PermissionsFromContext(r.Context())
+		w.WriteHeader(http.StatusTeapot)
+	}))
+	req := httptest.NewRequest(http.MethodGet, "/dashboard", nil).
+		WithContext(middleware.WithUser(context.Background(), user.User{ID: 1}))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if len(got) != 2 || got[0] != "view activity log" || got[1] != "manage roles" {
+		t.Errorf("permissions = %v, want [view activity log manage roles]", got)
+	}
+}
+
+func TestLoadPermissionsGuestYieldsNil(t *testing.T) {
+	lister := &fakeLister{names: map[int64][]string{}}
+	var got []string
+	called := false
+	h := middleware.LoadPermissions(lister)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		got = middleware.PermissionsFromContext(r.Context())
+		w.WriteHeader(http.StatusTeapot)
+	}))
+	req := httptest.NewRequest(http.MethodGet, "/dashboard", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if !called || got != nil {
+		t.Errorf("called = %v, permissions = %v, want pass-through with nil", called, got)
+	}
+}
+
+func TestLoadPermissionsListerError(t *testing.T) {
+	lister := &fakeLister{err: errors.New("boom")}
+	h := middleware.LoadPermissions(lister)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusTeapot)
+	}))
+	req := httptest.NewRequest(http.MethodGet, "/dashboard", nil).
+		WithContext(middleware.WithUser(context.Background(), user.User{ID: 1}))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
+	}
+}

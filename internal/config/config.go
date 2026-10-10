@@ -12,14 +12,15 @@ import (
 )
 
 type Config struct {
-	App       App
-	Postgres  Postgres
-	Session   Session
-	Mail      Mail
-	Auth      Auth
-	Features  Features
-	Career    Career
-	Education Education
+	App        App
+	Postgres   Postgres
+	Session    Session
+	Mail       Mail
+	Auth       Auth
+	Features   Features
+	Membership Membership
+	Career     Career
+	Education  Education
 	// TODO: GoogleDrive section comes later — add fields here.
 }
 
@@ -29,6 +30,21 @@ type Features struct {
 	Posts       bool
 	Committee   bool
 	Memberships bool
+}
+
+// Membership mirrors reference/config/membership.php.
+type Membership struct {
+	// Currency is the app-wide currency for membership money (e.g. "BDT").
+	Currency string
+	// GateableFeatures are the feature keys an admin can gate behind a plan
+	// (each a toggle in the plan editor).
+	GateableFeatures []string
+	// ExpiryEnabled / ExpiryAt drive the scheduled membership-expiry sweep.
+	ExpiryEnabled bool
+	ExpiryAt      string
+	// Proof configures the payment-proof upload: max size and allowed mimes.
+	ProofMaxKB int64
+	ProofMimes []string
 }
 
 // Career mirrors reference/config/career.php (hardcoded).
@@ -109,6 +125,9 @@ type Session struct {
 // Auth mirrors reference/config/auth.php sections used by the port.
 type Auth struct {
 	PasswordTimeout int // AUTH_PASSWORD_TIMEOUT, seconds (Fortify password.confirm TTL)
+	// DefaultRoles mirrors reference/config/auth.php default_roles: index 0 is
+	// the admin role the self-demotion guard protects.
+	DefaultRoles []string
 }
 
 // Load reads .env if present (existing env vars win), then builds Config
@@ -152,14 +171,16 @@ func Load() (*Config, error) {
 		},
 		Auth: Auth{
 			PasswordTimeout: getenvInt("AUTH_PASSWORD_TIMEOUT", 10800),
+			DefaultRoles:    []string{"admin", "moderator", "member"},
 		},
 		Features: Features{
 			Posts:       false,
 			Committee:   true,
 			Memberships: true,
 		},
-		Career:    careerConfig(),
-		Education: educationConfig(),
+		Membership: membershipConfig(),
+		Career:     careerConfig(),
+		Education:  educationConfig(),
 	}
 	return cfg, nil
 }

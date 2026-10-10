@@ -154,7 +154,7 @@ func (h *ProfileCareer) form(r *http.Request, id int64, in career.Input, descrip
 	return views.CareerForm{
 		AppName:         h.appName,
 		CSRFToken:       middleware.TokenFromContext(r.Context()),
-		Sidebar:         formSidebar(h.appName, middleware.TokenFromContext(r.Context()), u),
+		Sidebar:         formSidebar(h.appName, middleware.TokenFromContext(r.Context()), u, middleware.PermissionsFromContext(r.Context())),
 		ID:              id,
 		EmploymentTypes: toViewOptions(h.cfg.Career.EmploymentTypes),
 		Values: views.CareerView{

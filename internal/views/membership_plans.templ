@@ -1,0 +1,219 @@
+package views
+
+import (
+	"strconv"
+	"time"
+)
+
+// ---- member-facing: plans listing + payment submit ----
+
+// MemberPlansData is the member-facing plans page (reference
+// membership/plans.blade.php).
+type MemberPlansData struct {
+	Sidebar SidebarData
+	Plans   []MemberPlanCard
+	Currency string
+	CSRF    string
+}
+
+// MemberPlanCard is one plan on the member plans page.
+type MemberPlanCard struct {
+	ID          int64
+	Name        string
+	Description string
+	Price       string
+	TermLabel   string
+	IsLifetime  bool
+	Features    []string
+}
+
+templ MemberPlansPage(d MemberPlansData) {
+	@DashboardLayout(d.Sidebar) {
+		<div class="space-y-8">
+			<section class="max-w-2xl">
+				<p class="label-caps text-gold">Membership</p>
+				<h1 class="mt-3 font-serif text-3xl sm:text-4xl font-semibold text-navy">Membership Plans</h1>
+			</section>
+			if len(d.Plans) == 0 {
+				<p class="text-sm text-on-surface-variant">No membership plans yet.</p>
+			}
+			if len(d.Plans) > 0 {
+				<div class="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+					for _, p := range d.Plans {
+						<section class="card flex h-full flex-col p-6">
+							<h2 class="font-serif text-2xl font-semibold text-navy">{ p.Name }</h2>
+							if p.Description != "" {
+								<p class="mt-2 text-sm leading-6 text-on-surface-variant">{ p.Description }</p>
+							}
+							<p class="mt-4 text-3xl font-semibold text-navy">{ formatMoney(d.Currency, p.Price) }</p>
+							<p class="mt-1 text-sm text-on-surface-variant">{ p.TermLabel }</p>
+							if len(p.Features) > 0 {
+								<ul class="mt-4 space-y-1.5 text-sm text-on-surface-variant">
+									for _, f := range p.Features {
+										<li class="flex items-center gap-2">
+											<span class="text-gold">✓</span>
+											<span>{ featureLabel(f) }</span>
+										</li>
+									}
+								</ul>
+							}
+							<div class="mt-6 flex-1">{ "" }</div>
+							<a href={ templ.SafeURL("/dashboard/membership/payments/create?plan=" + strconv.FormatInt(p.ID, 10)) } class="btn-primary mt-4 inline-block text-center">Pay for this plan</a>
+						</section>
+					}
+				</div>
+			}
+		</div>
+	}
+}
+
+// MemberPaymentCreateData is the member-facing payment submit form (reference
+// membership/payment-create.blade.php).
+type MemberPaymentCreateData struct {
+	Sidebar SidebarData
+	Plans   []PlanOption
+	Methods []MethodOption
+	Amount  string // pre-filled price when ?plan= is given
+	PlanID  int64
+	Errors  map[string]string
+	Currency string
+	CSRF    string
+}
+
+// PlanOption is one plan <option> for the payment form.
+type PlanOption struct {
+	ID    int64
+	Name  string
+	Price string
+}
+
+// MethodOption is one payment-method <option> for the payment form.
+type MethodOption struct {
+	Type         string
+	Label        string
+	Instructions string // rendered HTML (already escaped)
+}
+
+templ MemberPaymentCreatePage(d MemberPaymentCreateData) {
+	@DashboardLayout(d.Sidebar) {
+		<div class="max-w-2xl space-y-8">
+			<section>
+				<p class="label-caps text-gold">Membership</p>
+				<h1 class="mt-3 font-serif text-3xl sm:text-4xl font-semibold text-navy">Submit Payment</h1>
+			</section>
+			<form method="POST" action="/dashboard/membership/payments" enctype="multipart/form-data" class="card space-y-6">
+				@CSRFToken(d.CSRF)
+				<label class="mb-1 block text-sm font-medium text-gray-700">
+					Plan
+					<select name="membership_plan_id" id="membership_plan_id" required class="field-input">
+						<option value="">Select a plan</option>
+						for _, p := range d.Plans {
+							if p.ID == d.PlanID {
+								<option value={ templ.JSONString(strconv.FormatInt(p.ID, 10)) } data-price={ templ.JSONString(p.Price) } selected>{ p.Name }</option>
+							} else {
+								<option value={ templ.JSONString(strconv.FormatInt(p.ID, 10)) }>{ p.Name }</option>
+							}
+						}
+					</select>
+				</label>
+				@TextInput("Amount", "amount", "text", templ.Attributes{"value": d.Amount, "placeholder": "0.00"})
+				@ErrText(d.Errors["amount"])
+				<label class="mb-1 block text-sm font-medium text-gray-700">
+					Method
+					<select name="method" id="method" required class="field-input">
+						<option value="">Select a payment method</option>
+						for _, m := range d.Methods {
+							<option value={ templ.SafeURL(m.Type) } data-instructions={ templ.SafeURL(m.Instructions) }>{ m.Label }</option>
+						}
+					</select>
+				</label>
+				@ErrText(d.Errors["method"])
+				<div id="method-instructions" class="rounded-md bg-surface-container p-3 text-sm text-on-surface-variant"></div>
+				@OptionalInput("Transaction Id/Reference", "reference", "text", templ.Attributes{"placeholder": "Optional"})
+				<label class="mb-1 block text-sm font-medium text-gray-700">
+					Paid on
+					<input type="date" name="paid_at" id="paid_at" required class="field-input" value={ time.Now().Format("2006-01-02") }/>
+				</label>
+				@ErrText(d.Errors["paid_at"])
+				<label class="mb-1 block text-sm font-medium text-gray-700">
+					Proof
+					<input type="file" name="proof" accept="image/jpeg,image/png,application/pdf" class="field-input"/>
+				</label>
+				@ErrText(d.Errors["proof"])
+				@OptionalTextarea("Notes", "notes", "")
+				<div class="flex items-center gap-4">
+					@SubmitButton("Submit Payment")
+					<a href="/dashboard/membership" class="text-sm text-on-surface-variant hover:text-navy">Cancel</a>
+				</div>
+			</form>
+		</div>
+		<script defer src="/static/membership.js"></script>
+	}
+}
+
+// MemberPaymentShowData is the member-facing payment detail page (reference
+// membership/payment-show.blade.php).
+type MemberPaymentShowData struct {
+	Sidebar     SidebarData
+	Payment     MyPaymentRow
+	Reference   string
+	Notes       string
+	ReviewNotes string
+	MethodName  string
+	ProofURL    string
+	Currency    string
+	CSRF        string
+}
+
+templ MemberPaymentShowPage(d MemberPaymentShowData) {
+	@DashboardLayout(d.Sidebar) {
+		<div class="max-w-2xl space-y-8">
+			<a href="/dashboard/membership" class="inline-block text-sm text-navy hover:text-gold">← Back to Membership</a>
+			<section class="card p-6 lg:p-8">
+				<p class="label-caps text-gold">Payment</p>
+				<div class="mt-3 flex flex-wrap items-center gap-3">
+					<h1 class="font-serif text-3xl font-semibold text-navy">{ formatMoney(d.Currency, d.Payment.Amount) }</h1>
+					<span class={ "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium", paymentStatusBadge(d.Payment.Status) }>{ paymentStatusLabel(d.Payment.Status) }</span>
+				</div>
+				<dl class="mt-6 space-y-3 border-t border-outline-variant/60 pt-5 text-sm">
+					<div class="flex items-start justify-between gap-4">
+						<dt class="shrink-0 text-on-surface-variant">Plan</dt>
+						<dd class="text-right text-navy">{ d.Payment.PlanName }</dd>
+					</div>
+					<div class="flex items-start justify-between gap-4">
+						<dt class="shrink-0 text-on-surface-variant">Method</dt>
+						<dd class="text-right text-navy">{ d.MethodName }</dd>
+					</div>
+					<div class="flex items-start justify-between gap-4">
+						<dt class="shrink-0 text-on-surface-variant">Paid on</dt>
+						<dd class="text-right text-navy">{ d.Payment.PaidAt.Format("02 Jan 2006") }</dd>
+					</div>
+					if d.Reference != "" {
+						<div class="flex items-start justify-between gap-4">
+							<dt class="shrink-0 text-on-surface-variant">Reference</dt>
+							<dd class="text-right text-navy">{ d.Reference }</dd>
+						</div>
+					}
+					if d.Notes != "" {
+						<div class="flex items-start justify-between gap-4">
+							<dt class="shrink-0 text-on-surface-variant">Notes</dt>
+							<dd class="text-right text-navy">{ d.Notes }</dd>
+						</div>
+					}
+					if d.ReviewNotes != "" {
+						<div class="flex items-start justify-between gap-4">
+							<dt class="shrink-0 text-on-surface-variant">Review notes</dt>
+							<dd class="text-right text-navy">{ d.ReviewNotes }</dd>
+						</div>
+					}
+				</dl>
+				if d.ProofURL != "" {
+					<div class="mt-6 border-t border-outline-variant/60 pt-5">
+						<p class="label-caps text-gold">Proof</p>
+						<a href={ templ.SafeURL(d.ProofURL) } target="_blank" rel="noopener" class="mt-2 inline-block font-medium text-navy underline decoration-gold/50 underline-offset-2 hover:text-gold">View proof</a>
+					</div>
+				}
+			</section>
+		</div>
+	}
+}

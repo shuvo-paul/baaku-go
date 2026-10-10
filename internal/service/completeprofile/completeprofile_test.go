@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/shuvo-paul/baaku/internal/service/activitylog"
 	"github.com/shuvo-paul/baaku/internal/service/completeprofile"
 )
 
@@ -24,6 +25,16 @@ func (f *fakeStore) UpsertDetails(_ context.Context, userID int64, gender, blood
 	return f.err
 }
 
+type fakeLogger struct {
+	entry activitylog.Entry
+	calls int
+}
+
+func (f *fakeLogger) Log(_ context.Context, e activitylog.Entry) error {
+	f.entry, f.calls = e, f.calls+1
+	return nil
+}
+
 // harness
 
 func validInput() completeprofile.Input {
@@ -37,15 +48,31 @@ func validInput() completeprofile.Input {
 
 // tests
 
-func TestCompletePersistsGateFields(t *testing.T) {
+func TestCompletePersistsGateFieldsAndLogsSubmitted(t *testing.T) {
 	store := &fakeStore{}
-	err := completeprofile.New(store).Complete(context.Background(), 7, validInput())
+	log := &fakeLogger{}
+	err := completeprofile.New(store, log).Complete(context.Background(), 7, validInput())
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
 	if store.userID != 7 || store.gender != "female" || store.blood != "O+" ||
 		store.present != "12 Lake Road" || store.permanent != "12 Lake Road" {
 		t.Errorf("stored = %+v for user %d", store, store.userID)
+	}
+	// Reference logs activity('profile')->performedOn($user)->event('submitted')
+	// after a successful store.
+	if log.calls != 1 {
+		t.Fatalf("Log calls = %d, want 1", log.calls)
+	}
+	if log.entry.LogName != "profile" || log.entry.Event != "submitted" ||
+		log.entry.Description != "profile submitted" {
+		t.Errorf("entry = %+v", log.entry)
+	}
+	if log.entry.Subject == nil || log.entry.Subject.Kind != activitylog.KindUser || log.entry.Subject.ID != 7 {
+		t.Errorf("subject = %+v, want user 7", log.entry.Subject)
+	}
+	if log.entry.Causer == nil || log.entry.Causer.ID != 7 {
+		t.Errorf("causer = %+v, want user 7", log.entry.Causer)
 	}
 }
 
@@ -67,7 +94,7 @@ func TestCompleteValidationMessages(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			in := validInput()
 			tt.mutate(&in)
-			err := completeprofile.New(&fakeStore{}).Complete(context.Background(), 7, in)
+			err := completeprofile.New(&fakeStore{}, &fakeLogger{}).Complete(context.Background(), 7, in)
 			var errs completeprofile.FieldErrors
 			if !errors.As(err, &errs) {
 				t.Fatalf("err = %v, want FieldErrors", err)
@@ -81,7 +108,7 @@ func TestCompleteValidationMessages(t *testing.T) {
 
 func TestCompleteStoreErrorPropagates(t *testing.T) {
 	want := errors.New("boom")
-	err := completeprofile.New(&fakeStore{err: want}).Complete(context.Background(), 7, validInput())
+	err := completeprofile.New(&fakeStore{err: want}, &fakeLogger{}).Complete(context.Background(), 7, validInput())
 	if !errors.Is(err, want) {
 		t.Errorf("err = %v, want %v", err, want)
 	}

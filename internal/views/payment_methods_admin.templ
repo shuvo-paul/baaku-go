@@ -1,0 +1,156 @@
+package views
+
+import (
+	"strconv"
+)
+
+// ---- admin: payment methods CRUD ----
+
+// AdminMethodsData is the admin payment-methods list (reference
+// payment-methods/index.blade.php).
+type AdminMethodsData struct {
+	Sidebar SidebarData
+	Rows    []AdminMethodRow
+	Flash   string // method-created / method-updated / method-deleted
+	CSRF    string
+}
+
+// AdminMethodRow is one payment method in the admin list.
+type AdminMethodRow struct {
+	ID       int64
+	Type     string
+	Label    string
+	IsActive bool
+}
+
+// AdminMethodForm is the shared create/edit payment-method form (reference
+// payment-methods/form.blade.php). On edit the type is locked.
+type AdminMethodForm struct {
+	Sidebar      SidebarData
+	Title        string // "New Payment Method" / "Edit Payment Method"
+	ID           int64  // 0 = create
+	Type         string
+	LockedType   bool // edit: the type is shown, not editable
+	TypeOptions  []MethodOption
+	Instructions string
+	IsActive     bool
+	FlashMessage string
+	Errors       map[string]string
+	CSRF         string
+}
+
+// methodFormAction is the form target: POST /dashboard/payment-methods
+// (create) or /dashboard/payment-methods/{id} with a spoofed PUT (edit).
+func methodFormAction(id int64) string {
+	if id == 0 {
+		return "/dashboard/payment-methods"
+	}
+	return "/dashboard/payment-methods/" + strconv.FormatInt(id, 10)
+}
+
+templ AdminMethodsPage(d AdminMethodsData) {
+	@DashboardLayout(d.Sidebar) {
+		<div class="space-y-6">
+			<section class="flex flex-wrap items-center justify-between gap-4">
+				<h1 class="font-serif text-3xl font-semibold text-navy">Payment Methods</h1>
+				<a href="/dashboard/payment-methods/create" class="btn-primary">New Payment Method</a>
+			</section>
+			if d.Flash == "method-created" {
+				@StatusText("Payment method created.")
+			} else if d.Flash == "method-updated" {
+				@StatusText("Payment method updated.")
+			} else if d.Flash == "method-deleted" {
+				@StatusText("Payment method deleted.")
+			}
+			<section class="card overflow-hidden">
+				if len(d.Rows) == 0 {
+					<p class="px-4 py-10 text-center text-on-surface-variant">No payment methods yet.</p>
+				} else {
+					<table class="w-full text-sm">
+						<thead class="border-b border-outline-variant/60 text-left label-caps text-on-surface-variant">
+							<tr>
+								<th class="px-4 py-3">Type</th>
+								<th class="px-4 py-3">Status</th>
+								<th class="px-4 py-3 text-right">Actions</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, row := range d.Rows {
+								<tr class="border-b border-outline-variant/40 last:border-0">
+									<td class="px-4 py-3 font-semibold text-navy">{ row.Label }</td>
+									<td class="px-4 py-3">
+										if row.IsActive {
+											<span class="rounded bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">Active</span>
+										} else {
+											<span class="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">Inactive</span>
+										}
+									</td>
+									<td class="px-4 py-3 text-right">
+										<a href={ templ.SafeURL("/dashboard/payment-methods/" + strconv.FormatInt(row.ID, 10) + "/edit") } class="mr-3 font-medium text-navy underline decoration-gold/50 underline-offset-2 hover:text-gold">Edit</a>
+										<form method="POST" action={ templ.SafeURL("/dashboard/payment-methods/" + strconv.FormatInt(row.ID, 10)) } class="ml-2 inline" onsubmit="return confirm('Delete this payment method?')">
+											<input type="hidden" name="_method" value="DELETE"/>
+											@CSRFToken(d.CSRF)
+											<button type="submit" class="font-medium text-red-600 hover:underline">Delete</button>
+										</form>
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				}
+			</section>
+		</div>
+	}
+}
+
+templ AdminMethodFormPage(d AdminMethodForm) {
+	@DashboardLayout(d.Sidebar) {
+		<div class="max-w-2xl space-y-8">
+			<section>
+				<p class="label-caps text-gold">Payment Methods</p>
+				<h1 class="mt-3 font-serif text-3xl sm:text-4xl font-semibold text-navy">{ d.Title }</h1>
+			</section>
+			if d.FlashMessage != "" {
+				@ErrText(d.FlashMessage)
+			}
+			<form method="POST" action={ templ.SafeURL(methodFormAction(d.ID)) } class="card space-y-6">
+				@CSRFToken(d.CSRF)
+				if d.ID != 0 {
+					<input type="hidden" name="_method" value="PUT"/>
+				}
+				if d.LockedType {
+					<div>
+						<span class="mb-1 block text-sm font-medium text-gray-700">Type</span>
+						<p class="text-sm text-navy">{ methodLabel(d.Type) }</p>
+						<p class="mt-1 text-xs text-on-surface-variant">The type is set when the method is created — payments reference it.</p>
+					</div>
+				} else {
+					<label class="mb-1 block text-sm font-medium text-gray-700">
+						Type
+						<select name="type" required class="field-input">
+							<option value="">Select a type</option>
+							for _, o := range d.TypeOptions {
+								if o.Type == d.Type {
+									<option value={ templ.SafeURL(o.Type) } selected>{ o.Label }</option>
+								} else {
+									<option value={ templ.SafeURL(o.Type) }>{ o.Label }</option>
+								}
+							}
+						</select>
+					</label>
+				}
+				@ErrText(d.Errors["type"])
+				<div>
+					@OptionalTextarea("Instructions", "instructions", d.Instructions)
+					<p class="mt-1 text-sm text-on-surface-variant">Shown to the member when they pick this method (e.g. "Send Money to this number, then enter the TrxID as the reference").</p>
+				</div>
+				@ErrText(d.Errors["instructions"])
+				@Checkbox("Active", "is_active", "1", d.IsActive, nil)
+				<div class="flex items-center gap-4">
+					@SubmitButton(d.Title)
+					<a href="/dashboard/payment-methods" class="text-sm text-on-surface-variant hover:text-navy">Cancel</a>
+				</div>
+			</form>
+		</div>
+	}
+}

@@ -47,6 +47,8 @@ func contentTypeFor(name string) string {
 		return "image/gif"
 	case ".webp":
 		return "image/webp"
+	case ".pdf":
+		return "application/pdf"
 	default:
 		return "image/jpeg"
 	}

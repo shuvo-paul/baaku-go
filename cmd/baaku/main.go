@@ -16,28 +16,46 @@ import (
 	"github.com/shuvo-paul/baaku/internal/logger"
 	"github.com/shuvo-paul/baaku/internal/mailer"
 	"github.com/shuvo-paul/baaku/internal/middleware"
+	activitylogrepo "github.com/shuvo-paul/baaku/internal/repository/activitylog"
 	careerrepo "github.com/shuvo-paul/baaku/internal/repository/career"
 	"github.com/shuvo-paul/baaku/internal/repository/confirm"
 	educationrepo "github.com/shuvo-paul/baaku/internal/repository/education"
+	memberdirectoryrepo "github.com/shuvo-paul/baaku/internal/repository/memberdirectory"
+	membershiprepo "github.com/shuvo-paul/baaku/internal/repository/membershiprepo"
+	methodrepo "github.com/shuvo-paul/baaku/internal/repository/methodrepo"
 	passwordresetrepo "github.com/shuvo-paul/baaku/internal/repository/passwordreset"
+	paymentrepo "github.com/shuvo-paul/baaku/internal/repository/paymentrepo"
+	permissionrepo "github.com/shuvo-paul/baaku/internal/repository/permission"
+	planrepo "github.com/shuvo-paul/baaku/internal/repository/planrepo"
 	"github.com/shuvo-paul/baaku/internal/repository/profile"
+	rolerepo "github.com/shuvo-paul/baaku/internal/repository/role"
 	"github.com/shuvo-paul/baaku/internal/repository/session"
 	"github.com/shuvo-paul/baaku/internal/repository/twofactor"
 	"github.com/shuvo-paul/baaku/internal/repository/user"
+	"github.com/shuvo-paul/baaku/internal/service/activitylog"
 	"github.com/shuvo-paul/baaku/internal/service/career"
 	"github.com/shuvo-paul/baaku/internal/service/completeprofile"
 	"github.com/shuvo-paul/baaku/internal/service/education"
 	"github.com/shuvo-paul/baaku/internal/service/emailverify"
 	"github.com/shuvo-paul/baaku/internal/service/login"
+	memberdirectorysvc "github.com/shuvo-paul/baaku/internal/service/memberdirectory"
+	membershipsvc "github.com/shuvo-paul/baaku/internal/service/membership"
+	membershipgate "github.com/shuvo-paul/baaku/internal/service/membershipgate"
+	paysvc "github.com/shuvo-paul/baaku/internal/service/membershippayment"
+	methodsvc "github.com/shuvo-paul/baaku/internal/service/membershippaymentmethod"
+	plansvc "github.com/shuvo-paul/baaku/internal/service/membershipplan"
 	"github.com/shuvo-paul/baaku/internal/service/passwordchange"
 	"github.com/shuvo-paul/baaku/internal/service/passwordconfirm"
 	"github.com/shuvo-paul/baaku/internal/service/passwordreset"
+	permsvc "github.com/shuvo-paul/baaku/internal/service/permission"
 	"github.com/shuvo-paul/baaku/internal/service/profiledetails"
 	"github.com/shuvo-paul/baaku/internal/service/profileinfo"
 	"github.com/shuvo-paul/baaku/internal/service/profilereview"
 	"github.com/shuvo-paul/baaku/internal/service/register"
+	rolesvc "github.com/shuvo-paul/baaku/internal/service/role"
 	tfasvc "github.com/shuvo-paul/baaku/internal/service/twofactor"
 	"github.com/shuvo-paul/baaku/internal/service/twofactorchallenge"
+	userrolesvc "github.com/shuvo-paul/baaku/internal/service/userrole"
 )
 
 // Built assets (make assets). all: keeps .gitkeep so go build works pre-build.
@@ -83,6 +101,14 @@ func main() {
 	confirmRepo := confirm.NewRepo(q, time.Duration(cfg.Auth.PasswordTimeout)*time.Second)
 	twofa := tfasvc.NewService(twofaRepo, twofaRepo, confirmRepo, key, cfg.App.Name)
 	profRepo := profile.NewRepo(q)
+	// Wave 1: activity log (spatie port) + permission-gated dashboard nav.
+	activityRepo := activitylogrepo.NewRepo(q)
+	activityLog := activitylog.New(activityRepo)
+	permRepo := permissionrepo.NewRepo(q)
+	permSvc := permsvc.New(permRepo)
+	// Wave 2: roles CRUD (reference RoleController) behind "manage roles".
+	roleRepo := rolerepo.NewRepo(q)
+	roleSvc := rolesvc.New(roleRepo, activityLog)
 
 	authSvc := login.New(users, sessStore, users)
 	challengeSvc := twofactorchallenge.New(sessStore, twofa, users)
@@ -118,18 +144,48 @@ func main() {
 	cph := handler.NewConfirmPassword(passwordconfirm.New(users, confirmRepo), cfg.App.Name)
 	tfch := handler.NewTwoFactorChallenge(challengeSvc, cfg.Session, cfg.App.Name, key)
 	dashH := handler.NewDashboard(cfg.App.Name)
+	actH := handler.NewActivityLog(activityLog, cfg.App.Name)
+	roleH := handler.NewRoleAdmin(roleSvc, cfg.App.Name)
 	uph := handler.NewUpdatePassword(func(ctx context.Context, userID int64, current, newPw, confirm string) error {
 		return passwordchange.ChangePassword(ctx, users, userID, current, newPw, confirm)
 	})
 	proh := handler.NewProfileUpdater(profileinfo.New(users).Update)
-	compH := handler.NewCompleteProfile(completeprofile.New(profRepo), profRepo, cfg.App.Name)
+	compH := handler.NewCompleteProfile(completeprofile.New(profRepo, activityLog), profRepo, cfg.App.Name)
 	tfsH := handler.NewTwoFactorSettings(twofa)
 	// Wave 2: profile details + education/career CRUD.
 	educationRepo := educationrepo.NewRepo(q)
 	careerRepo := careerrepo.NewRepo(q)
-	review := profilereview.New(users)
+	review := profilereview.New(users, activityLog)
 	educationSvc := education.New(educationRepo, review)
 	careerSvc := career.New(careerRepo, review)
+	// Wave 3: member directory + membership-state management (reference
+	// UserRoleController + UserStateController). The membership-feature gate
+	// (membership:members middleware) lands with the memberships wave.
+	memberRepo := memberdirectoryrepo.NewRepo(q)
+	membersSvc := memberdirectorysvc.New(memberRepo, educationSvc, careerSvc, activityLog, sendMail, cfg.App.URL)
+	membersH := handler.NewMembers(membersSvc, cfg.App.Name)
+	// Wave 4: assign roles to a member (reference UserRoleController@edit/update).
+	userRolesSvc := userrolesvc.New(users, roleRepo, roleRepo, activityLog, cfg.Auth.DefaultRoles)
+	userRolesH := handler.NewUserRoles(userRolesSvc, cfg.App.Name)
+
+	// Wave 5: memberships (reference MembershipController +
+	// MyMembershipController). The membership-feature gate redirects locked
+	// members to their membership page.
+	membershipRepo := membershiprepo.NewRepo(q, pool)
+	planRepo := planrepo.NewRepo(q)
+	payRepo := paymentrepo.NewRepo(q)
+	methodRepo := methodrepo.NewRepo(q)
+	planSvc := plansvc.New(planRepo)
+	methodSvc := methodsvc.New(methodRepo)
+	membershipSvc := membershipsvc.New(membershipRepo, planSvc, activityLog)
+	paySvc := paysvc.New(payRepo, membershipSvc, planSvc, methodSvc, activityLog)
+	membershipGate := membershipgate.New(cfg.Features.Memberships, membershipSvc)
+	myMemH := handler.NewMyMembership(membershipSvc, paySvc, planSvc, methodSvc, cfg, cfg.App.Name)
+	planH := handler.NewPlanAdmin(planSvc, cfg, cfg.App.Name)
+	methodH := handler.NewMethodAdmin(methodSvc, cfg.App.Name)
+	payH := handler.NewPaymentAdmin(paySvc, planSvc, methodSvc, cfg, cfg.App.Name)
+	memH := handler.NewMembershipAdmin(membershipSvc, paySvc, cfg, cfg.App.Name)
+	proofH := handler.NewMediaMembershipProof()
 	profileDetailsSvc := profiledetails.New(users, profRepo, review)
 	peh := handler.NewProfileEducation(educationSvc, cfg, cfg.App.Name)
 	pch := handler.NewProfileCareer(careerSvc, cfg, cfg.App.Name)
@@ -176,10 +232,14 @@ func main() {
 	completeMW.Get("/profile/complete", compH.Show)
 	completeMW.Post("/profile/complete", compH.Store)
 
+	// LoadPermissions stashes the viewer's permission names so the sidebar
+	// can gate nav items (Activity Log now; roles/users/… as they ship) the
+	// same way the reference's layouts/dashboard.blade.php calls can().
+	loadPerms := middleware.LoadPermissions(permRepo)
 	// Profile page (reference dashboard/profile: auth + verified +
 	// complete-profile.check + user.suspended) — security tab only for now;
 	// details/educations/careers tabs land in later waves.
-	profileMW := []func(http.Handler) http.Handler{authMW, middleware.RequireVerified, middleware.CompleteProfileCheck(profRepo), middleware.CheckUserSuspended}
+	profileMW := []func(http.Handler) http.Handler{authMW, middleware.RequireVerified, middleware.CompleteProfileCheck(profRepo), middleware.CheckUserSuspended, loadPerms}
 	r.With(profileMW...).Get("/dashboard/profile", profpH.Show)
 
 	// Wave 2 routes (reference routes/dashboard.php profile group): details
@@ -212,7 +272,81 @@ func main() {
 	// complete-profile.check. Suspended users keep /dashboard access; their
 	// sub-routes add user.suspended, and posts/users add user.approved —
 	// those routes land in later waves and get the guards there.
-	r.With(authMW, middleware.RequireVerified, middleware.CompleteProfileCheck(profRepo)).Get("/dashboard", dashH.Show)
+	r.With(authMW, middleware.RequireVerified, middleware.CompleteProfileCheck(profRepo), loadPerms).Get("/dashboard", dashH.Show)
+
+	// Activity log (reference routes/dashboard.php: dashboard group →
+	// user.suspended → permission:view activity log).
+	r.With(authMW, middleware.RequireVerified, middleware.CompleteProfileCheck(profRepo), middleware.CheckUserSuspended, loadPerms, middleware.RequirePermission(permSvc, "view activity log")).Get("/dashboard/activity-log", actH.Show)
+
+	// Roles CRUD (reference routes/dashboard.php: resource except show, inside
+	// permission:manage roles → dashboard group → user.suspended).
+	roleMW := []func(http.Handler) http.Handler{authMW, middleware.RequireVerified, middleware.CompleteProfileCheck(profRepo), middleware.CheckUserSuspended, loadPerms, middleware.RequirePermission(permSvc, "manage roles")}
+	r.With(roleMW...).Get("/dashboard/roles", roleH.Index)
+	r.With(roleMW...).Get("/dashboard/roles/create", roleH.Create)
+	r.With(roleMW...).Post("/dashboard/roles", roleH.Store)
+	r.With(roleMW...).Get("/dashboard/roles/{id}/edit", roleH.Edit)
+	r.With(roleMW...).Put("/dashboard/roles/{id}", roleH.Update)
+	r.With(roleMW...).Delete("/dashboard/roles/{id}", roleH.Destroy)
+
+	// Member directory + state management (reference routes/dashboard.php:
+	// users.index/show behind user.approved inside the dashboard group;
+	// users.state.update behind permission:manage members). The reference's
+	// membership:members middleware needs the memberships feature (Wave 5).
+	memberMW := []func(http.Handler) http.Handler{authMW, middleware.RequireVerified, middleware.CompleteProfileCheck(profRepo), middleware.CheckUserSuspended, middleware.CheckUserApproved, loadPerms}
+	// users.index/show are behind the membership:members feature gate
+	// (reference); staff who administer memberships bypass it.
+	usersGateMW := append(memberMW, middleware.RequireMembershipFeature(membershipGate, "members"))
+	r.With(usersGateMW...).Get("/dashboard/users", membersH.Index)
+	r.With(usersGateMW...).Get("/dashboard/users/{id}", membersH.Show)
+	r.With(append(memberMW, middleware.RequirePermission(permSvc, "manage members"))...).Put("/dashboard/users/{id}/state", membersH.UpdateState)
+	// Assign roles to a member (reference users.roles.edit/update): both sit
+	// behind permission:manage members in the same route group as
+	// users.state.update.
+	r.With(append(memberMW, middleware.RequirePermission(permSvc, "manage members"))...).Get("/dashboard/users/{id}/roles", userRolesH.Edit)
+	r.With(append(memberMW, middleware.RequirePermission(permSvc, "manage members"))...).Put("/dashboard/users/{id}/roles", userRolesH.Update)
+
+	// Wave 5: memberships. Member-facing routes sit inside the dashboard
+	// group (auth + verified + complete-profile); the admin routes are behind
+	// their membership permissions (reference routes/dashboard.php).
+	// Media: payment proofs streamed from the public disk.
+	r.Get("/media/membership-proofs/{file}", proofH.Show)
+
+	// Member-facing (MyMembershipController).
+	r.With(memberMW...).Get("/dashboard/membership", myMemH.Show)
+	r.With(memberMW...).Get("/dashboard/membership/plans", myMemH.Plans)
+	r.With(memberMW...).Get("/dashboard/membership/payments/create", myMemH.CreatePayment)
+	r.With(memberMW...).Post("/dashboard/membership/payments", myMemH.StorePayment)
+	r.With(memberMW...).Get("/dashboard/membership/payments/{id}", myMemH.ShowPayment)
+
+	// Admin plans + payment methods (reference permission:manage membership
+	// plans).
+	planMW := append(memberMW, middleware.RequirePermission(permSvc, "manage membership plans"))
+	r.With(planMW...).Get("/dashboard/plans", planH.Index)
+	r.With(planMW...).Get("/dashboard/plans/create", planH.Create)
+	r.With(planMW...).Post("/dashboard/plans", planH.Store)
+	r.With(planMW...).Get("/dashboard/plans/{id}/edit", planH.Edit)
+	r.With(planMW...).Put("/dashboard/plans/{id}", planH.Update)
+	r.With(planMW...).Delete("/dashboard/plans/{id}", planH.Destroy)
+	r.With(planMW...).Post("/dashboard/plans/reorder", planH.Reorder)
+	r.With(planMW...).Get("/dashboard/payment-methods", methodH.Index)
+	r.With(planMW...).Get("/dashboard/payment-methods/create", methodH.Create)
+	r.With(planMW...).Post("/dashboard/payment-methods", methodH.Store)
+	r.With(planMW...).Get("/dashboard/payment-methods/{id}/edit", methodH.Edit)
+	r.With(planMW...).Put("/dashboard/payment-methods/{id}", methodH.Update)
+	r.With(planMW...).Delete("/dashboard/payment-methods/{id}", methodH.Destroy)
+
+	// Admin memberships + payments (reference permission:manage memberships).
+	memberAdminMW := append(memberMW, middleware.RequirePermission(permSvc, "manage memberships"))
+	r.With(memberAdminMW...).Get("/dashboard/memberships", memH.Index)
+	r.With(memberAdminMW...).Get("/dashboard/memberships/{id}", memH.Show)
+	r.With(memberAdminMW...).Put("/dashboard/memberships/{id}", memH.Update)
+	r.With(memberAdminMW...).Post("/dashboard/memberships/{id}/cancel", memH.Cancel)
+	r.With(memberAdminMW...).Get("/dashboard/payments", payH.Index)
+	r.With(memberAdminMW...).Get("/dashboard/payments/create", payH.Create)
+	r.With(memberAdminMW...).Post("/dashboard/payments", payH.Store)
+	r.With(memberAdminMW...).Get("/dashboard/payments/{id}", payH.Show)
+	r.With(memberAdminMW...).Post("/dashboard/payments/{id}/approve", payH.Approve)
+	r.With(memberAdminMW...).Post("/dashboard/payments/{id}/reject", payH.Reject)
 
 	static, err := fs.Sub(staticFS, "static")
 	if err != nil {

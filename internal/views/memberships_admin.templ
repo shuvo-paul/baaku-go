@@ -1,0 +1,235 @@
+package views
+
+import (
+	"strconv"
+	"time"
+)
+
+// ---- admin: memberships index + show ----
+
+// AdminMembershipsData is the admin memberships list (reference
+// memberships/index.blade.php).
+type AdminMembershipsData struct {
+	Sidebar SidebarData
+	Rows    []AdminMembershipRow
+	Status  string // all / active / expired / cancelled
+	Total   int64
+	Page    int
+	HasPrev bool
+	HasNext bool
+	Flash   string // membership-updated / membership-cancelled
+	Err     string // membership-not-active
+	CSRF    string
+}
+
+// AdminMembershipRow is one membership in the admin list.
+type AdminMembershipRow struct {
+	ID        int64
+	UserID    int64
+	UserName  string
+	PlanName  string
+	Status    string // effective status
+	StartsAt  *time.Time
+	EndsAt    *time.Time
+	IsLifetime bool
+	Notes     string
+	// Payments are loaded on the show page only.
+	Payments []AdminPaymentRow
+}
+
+// membershipFilterOptions returns the status filter chips.
+func membershipFilterOptions() [][2]string {
+	return [][2]string{
+		{"all", "Status"},
+		{"active", "Active"},
+		{"expired", "Expired"},
+		{"cancelled", "Cancelled"},
+	}
+}
+
+templ AdminMembershipsPage(d AdminMembershipsData) {
+	@DashboardLayout(d.Sidebar) {
+		<div class="space-y-6">
+			<section class="flex flex-wrap items-center justify-between gap-4">
+				<h1 class="font-serif text-3xl font-semibold text-navy">Memberships</h1>
+			</section>
+			if d.Flash == "membership-updated" {
+				@StatusText("Membership updated.")
+			} else if d.Flash == "membership-cancelled" {
+				@StatusText("Membership cancelled.")
+			}
+			if d.Err == "membership-not-active" {
+				@ErrText("That membership is not active.")
+			}
+			<section class="card overflow-hidden">
+				<div class="mb-4 flex flex-wrap gap-2 px-4 pt-4">
+					for _, f := range membershipFilterOptions() {
+						<a href={ templ.SafeURL("/dashboard/memberships?status=" + f[0]) } class={ "rounded px-3 py-1.5 text-sm", templ.KV("bg-navy text-white", d.Status == f[0]), templ.KV("bg-surface-container text-on-surface-variant hover:text-navy", d.Status != f[0]) }>{ f[1] }</a>
+					}
+				</div>
+				<table class="w-full text-sm">
+					<thead class="border-b border-outline-variant/60 text-left label-caps text-on-surface-variant">
+						<tr>
+							<th class="px-4 py-3">Member</th>
+							<th class="px-4 py-3">Plan</th>
+							<th class="px-4 py-3">Status</th>
+							<th class="px-4 py-3">Starts</th>
+							<th class="px-4 py-3">Ends</th>
+							<th class="px-4 py-3 text-right">Actions</th>
+						</tr>
+					</thead>
+					<tbody>
+						if len(d.Rows) == 0 {
+							<tr>
+								<td colspan="6" class="px-4 py-10 text-center text-on-surface-variant">No memberships yet.</td>
+							</tr>
+						} else {
+							for _, row := range d.Rows {
+								<tr class="border-b border-outline-variant/40 last:border-0">
+									<td class="px-4 py-3 font-semibold text-navy">{ row.UserName }</td>
+									<td class="px-4 py-3 text-on-surface-variant">{ row.PlanName }</td>
+									<td class="px-4 py-3">
+										<span class={ "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium", membershipStatusBadge(row.Status) }>{ membershipStatusLabel(row.Status) }</span>
+									</td>
+									<td class="px-4 py-3 text-on-surface-variant">{ dateOr(row.StartsAt, "—") }</td>
+									<td class="px-4 py-3 text-on-surface-variant">{ dateOr(row.EndsAt, "Never") }</td>
+									<td class="px-4 py-3 text-right">
+										<a href={ templ.SafeURL("/dashboard/memberships/" + strconv.FormatInt(row.ID, 10)) } class="font-medium text-navy underline decoration-gold/50 underline-offset-2 hover:text-gold">Manage</a>
+									</td>
+								</tr>
+							}
+						}
+					</tbody>
+				</table>
+				if d.HasPrev || d.HasNext {
+					<nav role="navigation" aria-label="Pagination" class="flex items-center justify-between border-t border-outline-variant/60 px-4 py-3">
+						if d.HasPrev {
+							<a href={ templ.SafeURL(membershipPageHref(d.Status, d.Page-1)) } rel="prev" class="btn-secondary">Prev</a>
+						} else {
+							<span class="btn-secondary opacity-40">Prev</span>
+						}
+						if d.HasNext {
+							<a href={ templ.SafeURL(membershipPageHref(d.Status, d.Page+1)) } rel="next" class="btn-secondary">Next</a>
+						} else {
+							<span class="btn-secondary opacity-40">Next</span>
+						}
+					</nav>
+				}
+			</section>
+		</div>
+	}
+}
+
+// membershipPageHref builds the admin memberships pagination link.
+func membershipPageHref(status string, page int) string {
+	return "/dashboard/memberships?status=" + status + "&page=" + strconv.Itoa(page)
+}
+
+// AdminMembershipShowData is the admin membership manage page (reference
+// memberships/show.blade.php).
+type AdminMembershipShowData struct {
+	Sidebar SidebarData
+	Membership AdminMembershipRow
+	CanCancel bool
+	Err      string // ends-after-start
+	CSRF     string
+}
+
+templ AdminMembershipShowPage(d AdminMembershipShowData) {
+	@DashboardLayout(d.Sidebar) {
+		<div class="space-y-6">
+			<a href="/dashboard/memberships" class="inline-block text-sm text-navy hover:text-gold">← Back to Memberships</a>
+			<div class="grid gap-6 lg:grid-cols-12">
+				<div class="space-y-6 lg:col-span-4">
+					<section class="card p-6">
+						<p class="label-caps text-gold">Current membership</p>
+						<h1 class="mt-2 font-serif text-2xl font-semibold text-navy">{ d.Membership.PlanName }</h1>
+						<div class="mt-3 flex flex-wrap items-center gap-2">
+							<span class={ "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium", membershipStatusBadge(d.Membership.Status) }>{ membershipStatusLabel(d.Membership.Status) }</span>
+							if d.Membership.IsLifetime {
+								<span class="rounded bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800">Lifetime</span>
+							}
+						</div>
+						<dl class="mt-6 space-y-3 border-t border-outline-variant/60 pt-5 text-sm">
+							<div class="flex items-start justify-between gap-4">
+								<dt class="shrink-0 text-on-surface-variant">Starts</dt>
+								<dd class="text-right text-navy">{ dateOr(d.Membership.StartsAt, "—") }</dd>
+							</div>
+							<div class="flex items-start justify-between gap-4">
+								<dt class="shrink-0 text-on-surface-variant">Ends</dt>
+								<dd class="text-right text-navy">{ dateOr(d.Membership.EndsAt, "Never") }</dd>
+							</div>
+							<div class="flex items-start justify-between gap-4">
+								<dt class="shrink-0 text-on-surface-variant">Member</dt>
+								<dd class="text-right text-navy">{ d.Membership.UserName }</dd>
+							</div>
+						</dl>
+						if d.Membership.Notes != "" {
+							<div class="mt-5 border-t border-outline-variant/60 pt-5">
+								<p class="label-caps text-gold">Notes</p>
+								<p class="mt-2 text-sm text-on-surface-variant">{ d.Membership.Notes }</p>
+							</div>
+						}
+					</section>
+					<section class="card p-6">
+						<p class="label-caps text-gold">Actions</p>
+						if d.Err == "ends-after-start" {
+							@ErrText("The end date must be after the start date.")
+						}
+						<form method="POST" action={ templ.SafeURL("/dashboard/memberships/" + strconv.FormatInt(d.Membership.ID, 10)) } class="mt-4 space-y-4">
+							@CSRFToken(d.CSRF)
+							<input type="hidden" name="_method" value="PUT"/>
+							<label class="mb-1 block text-sm font-medium text-gray-700">
+								Ends
+								<input type="date" name="ends_at" class="field-input" value={ dateValue(d.Membership.EndsAt) }/>
+							</label>
+							@OptionalTextarea("Notes", "notes", d.Membership.Notes)
+							<button type="submit" class="btn-primary">Save changes</button>
+						</form>
+						if d.CanCancel {
+							<form method="POST" action={ templ.SafeURL("/dashboard/memberships/" + strconv.FormatInt(d.Membership.ID, 10) + "/cancel") } class="mt-4" onsubmit="return confirm('Cancel this membership?')">
+								@CSRFToken(d.CSRF)
+								<button type="submit" class="w-full rounded border border-error px-4 py-2 text-sm font-semibold text-error transition-colors hover:bg-error hover:text-white">Cancel membership</button>
+							</form>
+						}
+					</section>
+				</div>
+				<div class="space-y-6 lg:col-span-8">
+					<section class="card p-6">
+						<p class="label-caps text-gold">Payments</p>
+						if len(d.Membership.Payments) == 0 {
+							<p class="mt-4 text-sm text-on-surface-variant">No payments yet.</p>
+						} else {
+							<table class="mt-4 w-full text-sm">
+								<thead class="border-b border-outline-variant/60 text-left label-caps text-on-surface-variant">
+									<tr>
+										<th class="py-2 px-3">Paid on</th>
+										<th class="py-2 px-3">Amount</th>
+										<th class="py-2 px-3">Method</th>
+										<th class="py-2 px-3">Status</th>
+										<th class="py-2 px-3 text-right">Actions</th>
+									</tr>
+								</thead>
+								<tbody>
+									for _, p := range d.Membership.Payments {
+										<tr class="border-b border-outline-variant/40 last:border-0">
+											<td class="py-2 px-3">{ p.PaidAt.Format("02 Jan 2006") }</td>
+											<td class="py-2 px-3">{ p.Amount }</td>
+											<td class="py-2 px-3 text-on-surface-variant">{ methodLabel(p.Method) }</td>
+											<td class="py-2 px-3">
+												<span class={ "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium", paymentStatusBadge(p.Status) }>{ paymentStatusLabel(p.Status) }</span>
+											</td>
+											<td class="py-2 px-3 text-right">
+												<a href={ templ.SafeURL("/dashboard/payments/" + strconv.FormatInt(p.ID, 10)) } class="font-medium text-navy hover:text-gold">Manage</a>
+											</td>
+										</tr>
+									}
+								</tbody>
+							</table>
+						}
+					</section>
+				</div>
+			</div>
+		</div>
+	}
+}

@@ -36,7 +36,7 @@ templ EducationFormPage(f EducationForm) {
 					@YearSelect("Start year", "start_year", f.Values.StartYear, true)
 					@MonthSelect("Start month", "start_month", f.Values.StartMonth)
 				</div>
-				@Checkbox("Currently studying", "is_current", f.Values.IsCurrent, nil)
+				@Checkbox("Currently studying", "is_current", "1", f.Values.IsCurrent, nil)
 				if !f.Values.IsCurrent {
 					<div class="grid grid-cols-2 gap-4">
 						@YearSelect("End year", "end_year", f.Values.EndYear, false)
@@ -94,7 +94,7 @@ templ CareerFormPage(f CareerForm) {
 					@YearSelect("Start year", "start_year", f.Values.StartYear, true)
 					@MonthSelect("Start month", "start_month", f.Values.StartMonth)
 				</div>
-				@Checkbox("Currently working", "is_current", f.Values.IsCurrent, nil)
+				@Checkbox("Currently working", "is_current", "1", f.Values.IsCurrent, nil)
 				if !f.Values.IsCurrent {
 					<div class="grid grid-cols-2 gap-4">
 						@YearSelect("End year", "end_year", f.Values.EndYear, false)

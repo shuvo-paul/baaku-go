@@ -24,12 +24,30 @@ type SidebarData struct {
 	UserEmail  string
 	ActivePath string
 	Suspended  bool
+	// Active gates the Member Directory nav item (reference: state === active;
+	// the users.index route is behind user.approved so only active members
+	// reach it).
+	Active bool
+	// Permissions are the viewer's effective permission names (from
+	// middleware.LoadPermissions); nav items the reference gates with
+	// auth()->user()->can(…) are shown only when the name is present.
+	Permissions []string
+}
+
+// can reports whether the viewer holds the named permission.
+func (s SidebarData) can(permission string) bool {
+	for _, p := range s.Permissions {
+		if p == permission {
+			return true
+		}
+	}
+	return false
 }
 
 // navItem is one sidebar link that has a live route in the Go port. The
-// reference gates more items (roles, users, activity, careers, posts,
-// committee, membership) by permission/feature flag; those routes land in
-// later waves and are added here as they ship.
+// reference gates more items (roles, users, careers, posts, committee,
+// membership) by permission/feature flag; those routes land in later waves
+// and are added here as they ship.
 type navItem struct {
 	Label string
 	Path  string
@@ -37,6 +55,29 @@ type navItem struct {
 
 func (s SidebarData) navItems() []navItem {
 	items := []navItem{{"Dashboard", "/dashboard"}}
+	if s.can("manage roles") {
+		items = append(items, navItem{"Roles", "/dashboard/roles"})
+	}
+	if s.Active {
+		items = append(items, navItem{"Members", "/dashboard/users"})
+	}
+	if s.can("view activity log") {
+		items = append(items, navItem{"Activity Log", "/dashboard/activity-log"})
+	}
+	// Membership (member-facing) shows for active members while the
+	// memberships feature is on (reference: config features.memberships &&
+	// state === active). The admin links below are permission-gated.
+	if s.Active {
+		items = append(items, navItem{"Membership", "/dashboard/membership"})
+	}
+	if s.can("manage membership plans") {
+		items = append(items, navItem{"Plans", "/dashboard/plans"})
+		items = append(items, navItem{"Payment Methods", "/dashboard/payment-methods"})
+	}
+	if s.can("manage memberships") {
+		items = append(items, navItem{"Memberships", "/dashboard/memberships"})
+		items = append(items, navItem{"Payment Queue", "/dashboard/payments"})
+	}
 	if !s.Suspended {
 		items = append(items, navItem{"Profile", "/dashboard/profile"})
 	}
@@ -48,12 +89,18 @@ func (s SidebarData) isActive(path string) bool {
 }
 
 // NewSidebarData builds the dashboard chrome for a page. activePath is the
-// current request path; suspended hides the Profile nav item.
-func NewSidebarData(appName, csrfToken, userName, userEmail, activePath string, suspended bool) SidebarData {
+// current request path; state derives Suspended (hides Profile) and Active
+// (gates Members, reference state === active; the membership-feature half of
+// that gate lands with the memberships wave); permissions gates the nav items
+// the reference gates by can().
+func NewSidebarData(appName, csrfToken, userName, userEmail, activePath string, state string, permissions []string) SidebarData {
 	return SidebarData{
 		AppName: appName, CSRFToken: csrfToken,
 		UserName: userName, UserEmail: userEmail,
-		ActivePath: activePath, Suspended: suspended,
+		ActivePath:  activePath,
+		Suspended:   state == "suspended",
+		Active:      state == "active",
+		Permissions: permissions,
 	}
 }
 
@@ -85,7 +132,7 @@ func DashboardLayout(s SidebarData) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(s.AppName)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/dashboard_layout.templ`, Line: 57, Col: 21}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/dashboard_layout.templ`, Line: 104, Col: 21}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -98,7 +145,7 @@ func DashboardLayout(s SidebarData) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(s.AppName)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/dashboard_layout.templ`, Line: 71, Col: 73}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/dashboard_layout.templ`, Line: 118, Col: 73}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -111,7 +158,7 @@ func DashboardLayout(s SidebarData) templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(s.AppName)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/dashboard_layout.templ`, Line: 81, Col: 67}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/dashboard_layout.templ`, Line: 128, Col: 67}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
@@ -134,7 +181,7 @@ func DashboardLayout(s SidebarData) templ.Component {
 			var templ_7745c5c3_Var6 templ.SafeURL
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinURLErrs(item.Path)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/dashboard_layout.templ`, Line: 91, Col: 26}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/dashboard_layout.templ`, Line: 138, Col: 26}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -166,7 +213,7 @@ func DashboardLayout(s SidebarData) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(item.Label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/dashboard_layout.templ`, Line: 95, Col: 20}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/dashboard_layout.templ`, Line: 142, Col: 20}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
@@ -184,7 +231,7 @@ func DashboardLayout(s SidebarData) templ.Component {
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(s.UserName)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/dashboard_layout.templ`, Line: 108, Col: 61}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/dashboard_layout.templ`, Line: 155, Col: 61}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
@@ -197,7 +244,7 @@ func DashboardLayout(s SidebarData) templ.Component {
 		var templ_7745c5c3_Var10 string
 		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(s.UserEmail)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/dashboard_layout.templ`, Line: 109, Col: 76}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/dashboard_layout.templ`, Line: 156, Col: 76}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 		if templ_7745c5c3_Err != nil {

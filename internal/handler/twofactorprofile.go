@@ -15,7 +15,6 @@ import (
 	"github.com/shuvo-paul/baaku/internal/service/career"
 	"github.com/shuvo-paul/baaku/internal/service/education"
 	"github.com/shuvo-paul/baaku/internal/service/twofactor"
-	"github.com/shuvo-paul/baaku/internal/service/user"
 	"github.com/shuvo-paul/baaku/internal/views"
 )
 
@@ -211,7 +210,8 @@ func (h *ProfilePage) Show(w http.ResponseWriter, r *http.Request) {
 		CSRFToken: middleware.TokenFromContext(r.Context()),
 		Sidebar: views.NewSidebarData(
 			h.appName, middleware.TokenFromContext(r.Context()),
-			u.Name, u.Email, "/dashboard/profile", u.State == user.StateSuspended,
+			u.Name, u.Email, "/dashboard/profile", string(u.State),
+			middleware.PermissionsFromContext(r.Context()),
 		),
 		User:            views.ProfileUser{Name: u.Name, Email: u.Email, Phone: phone},
 		EmploymentTypes: toViewOptions(h.cfg.Career.EmploymentTypes),

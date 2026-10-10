@@ -17,9 +17,11 @@ import (
 )
 
 // formSidebar builds the dashboard chrome for the education/career form pages,
-// which all live under /dashboard/profile.
-func formSidebar(appName, csrf string, u user.User) views.SidebarData {
-	return views.NewSidebarData(appName, csrf, u.Name, u.Email, "/dashboard/profile", u.State == user.StateSuspended)
+// which all live under /dashboard/profile. permissions comes from
+// middleware.LoadPermissions and gates nav items (reference
+// auth()->user()->can() checks in the dashboard layout).
+func formSidebar(appName, csrf string, u user.User, permissions []string) views.SidebarData {
+	return views.NewSidebarData(appName, csrf, u.Name, u.Email, "/dashboard/profile", string(u.State), permissions)
 }
 
 // EducationService is the education CRUD surface; *education.Service
@@ -53,7 +55,7 @@ func (h *ProfileEducation) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	views.EducationFormPage(views.EducationForm{
 		AppName: h.appName, CSRFToken: middleware.TokenFromContext(r.Context()),
-		Sidebar: formSidebar(h.appName, middleware.TokenFromContext(r.Context()), u),
+		Sidebar: formSidebar(h.appName, middleware.TokenFromContext(r.Context()), u, middleware.PermissionsFromContext(r.Context())),
 		Levels:  h.cfg.Education.Levels, Institutions: h.cfg.Education.Institutions, Subjects: h.cfg.Education.Subjects,
 	}).Render(r.Context(), w)
 }
@@ -99,7 +101,7 @@ func (h *ProfileEducation) Edit(w http.ResponseWriter, r *http.Request) {
 	}
 	views.EducationFormPage(views.EducationForm{
 		AppName: h.appName, CSRFToken: middleware.TokenFromContext(r.Context()), ID: id,
-		Sidebar: formSidebar(h.appName, middleware.TokenFromContext(r.Context()), u),
+		Sidebar: formSidebar(h.appName, middleware.TokenFromContext(r.Context()), u, middleware.PermissionsFromContext(r.Context())),
 		Values:  educationToView(e),
 		Levels:  h.cfg.Education.Levels, Institutions: h.cfg.Education.Institutions, Subjects: h.cfg.Education.Subjects,
 	}).Render(r.Context(), w)
@@ -163,7 +165,7 @@ func (h *ProfileEducation) renderFormError(w http.ResponseWriter, r *http.Reques
 	u, _ := middleware.UserFromContext(r.Context())
 	views.EducationFormPage(views.EducationForm{
 		AppName: h.appName, CSRFToken: middleware.TokenFromContext(r.Context()), ID: id,
-		Sidebar: formSidebar(h.appName, middleware.TokenFromContext(r.Context()), u),
+		Sidebar: formSidebar(h.appName, middleware.TokenFromContext(r.Context()), u, middleware.PermissionsFromContext(r.Context())),
 		Values:  inputToEducationView(in),
 		Levels:  h.cfg.Education.Levels, Institutions: h.cfg.Education.Institutions, Subjects: h.cfg.Education.Subjects,
 		ErrMsg: fieldErrs.Error(),

@@ -1,0 +1,169 @@
+package views
+
+
+import "strconv"
+// RolesPageData is the roles index (reference roles/index.blade.php inside
+// layouts/dashboard).
+type RolesPageData struct {
+	Sidebar SidebarData
+	Rows    []RoleRow
+	Flash   string // role-created / role-updated / role-deleted
+	Err     string // role-has-users
+	CSRF    string
+}
+
+// RoleRow is one role for the index table.
+type RoleRow struct {
+	ID          int64
+	Name        string
+	Permissions []string
+}
+
+// RoleFormData is the shared create/edit role form (reference
+// roles/create.blade.php + roles/edit.blade.php).
+type RoleFormData struct {
+	Sidebar      SidebarData
+	Title        string // "Create Role" / "Edit Role"
+	ID           int64  // 0 = create
+	Name         string
+	Permissions  []string // every permission name (the checkbox list)
+	Selected     []string // currently granted permission names (edit)
+	FlashMessage string
+	CSRF         string
+}
+
+// isSelected reports whether a permission name is currently granted.
+func (d RoleFormData) isSelected(name string) bool {
+	for _, s := range d.Selected {
+		if s == name {
+			return true
+		}
+	}
+	return false
+}
+// joinPermissions renders the granted permission names as a comma list.
+func joinPermissions(perms []string) string {
+	out := ""
+	for i, p := range perms {
+		if i > 0 {
+			out += ", "
+		}
+		out += p
+	}
+	return out
+}
+
+// roleFormAction is the form target: POST /dashboard/roles (create) or POST
+// /dashboard/roles/{id} with a spoofed PUT (edit).
+func roleFormAction(id int64) string {
+	if id == 0 {
+		return "/dashboard/roles"
+	}
+	return "/dashboard/roles/" + strconv.FormatInt(id, 10)
+}
+
+
+templ RolesPage(d RolesPageData) {
+	@DashboardLayout(d.Sidebar) {
+		<div class="space-y-8">
+			<section class="flex flex-wrap items-end justify-between gap-6">
+				<div class="max-w-2xl">
+					<p class="label-caps text-gold">Administration</p>
+					<h1 class="mt-3 font-serif text-3xl sm:text-4xl font-semibold text-navy">Roles</h1>
+					<p class="mt-4 text-lg leading-8 text-on-surface-variant">Manage the roles members can hold and the permissions each grants.</p>
+				</div>
+				<a href="/dashboard/roles/create" class="btn-primary">Create Role</a>
+			</section>
+			if d.Flash != "" || d.Err != "" {
+				<section>
+					if d.Flash == "role-created" {
+						@StatusText("Role created.")
+					} else if d.Flash == "role-updated" {
+						@StatusText("Role updated.")
+					} else if d.Flash == "role-deleted" {
+						@StatusText("Role deleted.")
+					}
+					if d.Err == "role-has-users" {
+						@ErrText("This role is still assigned to members and cannot be deleted.")
+					}
+				</section>
+			}
+			<section class="card overflow-hidden">
+				<table class="w-full text-sm">
+					<thead class="border-b border-outline-variant/60 text-left label-caps text-on-surface-variant">
+						<tr>
+							<th class="px-4 py-3">Role</th>
+							<th class="px-4 py-3">Permissions</th>
+							<th class="px-4 py-3 text-right">Actions</th>
+						</tr>
+					</thead>
+					<tbody>
+						if len(d.Rows) == 0 {
+							<tr>
+								<td colspan="3" class="px-4 py-10 text-center text-on-surface-variant">
+									No roles have been created yet.
+								</td>
+							</tr>
+						} else {
+							for _, row := range d.Rows {
+								<tr class="border-b border-outline-variant/40 last:border-0">
+									<td class="px-4 py-3 font-semibold text-navy">{ row.Name }</td>
+									<td class="px-4 py-3 text-on-surface-variant">
+										if len(row.Permissions) == 0 {
+											<span class="italic opacity-70">None</span>
+										} else {
+											{ joinPermissions(row.Permissions) }
+										}
+									</td>
+									<td class="px-4 py-3 text-right">
+										<a href={ templ.SafeURL("/dashboard/roles/" + strconv.FormatInt(row.ID, 10) + "/edit") } class="font-medium text-navy underline decoration-gold/50 underline-offset-2 hover:text-gold">Edit</a>
+										<form method="POST" action={ templ.SafeURL("/dashboard/roles/" + strconv.FormatInt(row.ID, 10)) } class="ml-4 inline" onsubmit="return confirm('Delete this role?')">
+											<input type="hidden" name="_method" value="DELETE"/>
+											@CSRFToken(d.CSRF)
+											<button type="submit" class="font-medium text-red-600 hover:underline">Delete</button>
+										</form>
+									</td>
+								</tr>
+							}
+						}
+					</tbody>
+				</table>
+			</section>
+		</div>
+	}
+}
+
+templ RoleFormPage(d RoleFormData) {
+	@DashboardLayout(d.Sidebar) {
+		<div class="max-w-2xl space-y-8">
+			<section>
+				<p class="label-caps text-gold">Roles</p>
+				<h1 class="mt-3 font-serif text-3xl sm:text-4xl font-semibold text-navy">{ d.Title }</h1>
+			</section>
+			if d.FlashMessage != "" {
+				@ErrText(d.FlashMessage)
+			}
+			<form method="POST" action={ templ.SafeURL(roleFormAction(d.ID)) } class="card space-y-6">
+				@CSRFToken(d.CSRF)
+				if d.ID != 0 {
+					<input type="hidden" name="_method" value="PUT"/>
+				}
+				@TextInput("Name", "name", "text", templ.Attributes{"value": d.Name, "required": true})
+				<fieldset class="space-y-3">
+					<legend class="label-caps text-on-surface-variant">Permissions</legend>
+					if len(d.Permissions) == 0 {
+						<p class="text-sm text-on-surface-variant italic">No permissions have been seeded yet.</p>
+					} else {
+						for _, p := range d.Permissions {
+							@Checkbox(p, "permissions[]", p, d.isSelected(p), nil)
+						}
+					}
+				</fieldset>
+				<div class="flex items-center gap-4">
+					@SubmitButton(d.Title)
+					<a href="/dashboard/roles" class="text-sm text-on-surface-variant hover:text-navy">Cancel</a>
+				</div>
+			</form>
+		</div>
+	}
+}

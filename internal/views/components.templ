@@ -137,12 +137,12 @@ templ CSRFToken(token string) {
 
 
 // Checkbox is the labelled boolean input (reference x-form.checkbox).
-templ Checkbox(label, name string, checked bool, attrs templ.Attributes) {
+templ Checkbox(label, name, value string, checked bool, attrs templ.Attributes) {
 	<label class="flex items-center gap-2 text-sm font-medium text-on-surface-variant">
 		<input
 			type="checkbox"
 			name={ name }
-			value="1"
+			value={ value }
 			class="rounded border-outline-variant text-navy focus:ring-gold/40"
 			if checked {
 				checked

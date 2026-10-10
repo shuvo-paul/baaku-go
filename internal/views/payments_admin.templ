@@ -1,0 +1,295 @@
+package views
+
+import (
+	"strconv"
+	"time"
+)
+
+// ---- admin: payments queue + review + record ----
+
+// AdminPaymentsData is the admin payment queue (reference
+// payments/index.blade.php).
+type AdminPaymentsData struct {
+	Sidebar SidebarData
+	Rows    []AdminPaymentRow
+	Status  string // pending / approved / rejected / all
+	Total   int64
+	Page    int
+	HasPrev bool
+	HasNext bool
+	Currency string
+	CSRF    string
+}
+
+// AdminPaymentRow is one payment in an admin list.
+type AdminPaymentRow struct {
+	ID         int64
+	UserID     int64
+	UserName   string
+	PlanName   string
+	Amount     string
+	Method     string
+	Reference  string
+	Notes      string
+	ReviewNotes string
+	PaidAt     time.Time
+	Status     string
+	ReviewedAt *time.Time
+	ProofURL   string
+}
+
+// paymentFilterOptions returns the status filter chips for the queue.
+func paymentFilterOptions() [][2]string {
+	return [][2]string{
+		{"pending", "Pending"},
+		{"approved", "Approved"},
+		{"rejected", "Rejected"},
+		{"all", "Status"},
+	}
+}
+
+templ AdminPaymentsPage(d AdminPaymentsData) {
+	@DashboardLayout(d.Sidebar) {
+		<div class="space-y-6">
+			<section class="flex flex-wrap items-center justify-between gap-4">
+				<h1 class="font-serif text-3xl font-semibold text-navy">Payment Queue</h1>
+				<a href="/dashboard/payments/create" class="btn-primary">Record Payment</a>
+			</section>
+			<section class="card overflow-hidden">
+				<div class="mb-4 flex flex-wrap gap-2 px-4 pt-4">
+					for _, f := range paymentFilterOptions() {
+						<a href={ templ.SafeURL("/dashboard/payments?status=" + f[0]) } class={ "rounded px-3 py-1.5 text-sm", templ.KV("bg-navy text-white", d.Status == f[0]), templ.KV("bg-surface-container text-on-surface-variant hover:text-navy", d.Status != f[0]) }>{ f[1] }</a>
+					}
+				</div>
+				<table class="w-full text-sm">
+					<thead class="border-b border-outline-variant/60 text-left label-caps text-on-surface-variant">
+						<tr>
+							<th class="px-4 py-3">Member</th>
+							<th class="px-4 py-3">Plan</th>
+							<th class="px-4 py-3">Amount</th>
+							<th class="px-4 py-3">Method</th>
+							<th class="px-4 py-3">Paid on</th>
+							<th class="px-4 py-3">Status</th>
+							<th class="px-4 py-3 text-right">Actions</th>
+						</tr>
+					</thead>
+					<tbody>
+						if len(d.Rows) == 0 {
+							<tr>
+								<td colspan="7" class="px-4 py-10 text-center text-on-surface-variant">No payments yet.</td>
+							</tr>
+						} else {
+							for _, row := range d.Rows {
+								<tr class="border-b border-outline-variant/40 last:border-0">
+									<td class="px-4 py-3 font-semibold text-navy">{ row.UserName }</td>
+									<td class="px-4 py-3 text-on-surface-variant">{ row.PlanName }</td>
+									<td class="px-4 py-3">{ formatMoney(d.Currency, row.Amount) }</td>
+									<td class="px-4 py-3 text-on-surface-variant">{ methodLabel(row.Method) }</td>
+									<td class="px-4 py-3 text-on-surface-variant">{ row.PaidAt.Format("02 Jan 2006") }</td>
+									<td class="px-4 py-3">
+										<span class={ "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium", paymentStatusBadge(row.Status) }>{ paymentStatusLabel(row.Status) }</span>
+									</td>
+									<td class="px-4 py-3 text-right">
+										<a href={ templ.SafeURL("/dashboard/payments/" + strconv.FormatInt(row.ID, 10)) } class="font-medium text-navy underline decoration-gold/50 underline-offset-2 hover:text-gold">Review</a>
+									</td>
+								</tr>
+							}
+						}
+					</tbody>
+				</table>
+				if d.HasPrev || d.HasNext {
+					<nav role="navigation" aria-label="Pagination" class="flex items-center justify-between border-t border-outline-variant/60 px-4 py-3">
+						if d.HasPrev {
+							<a href={ templ.SafeURL(paymentPageHref(d.Status, d.Page-1)) } rel="prev" class="btn-secondary">Prev</a>
+						} else {
+							<span class="btn-secondary opacity-40">Prev</span>
+						}
+						if d.HasNext {
+							<a href={ templ.SafeURL(paymentPageHref(d.Status, d.Page+1)) } rel="next" class="btn-secondary">Next</a>
+						} else {
+							<span class="btn-secondary opacity-40">Next</span>
+						}
+					</nav>
+				}
+			</section>
+		</div>
+	}
+}
+
+// paymentPageHref builds the admin payments pagination link.
+func paymentPageHref(status string, page int) string {
+	return "/dashboard/payments?status=" + status + "&page=" + strconv.Itoa(page)
+}
+
+// AdminPaymentShowData is the admin payment review page (reference
+// payments/show.blade.php).
+type AdminPaymentShowData struct {
+	Sidebar SidebarData
+	Payment AdminPaymentRow
+	Currency string
+	Err     string // payment-not-pending
+	CSRF    string
+}
+
+templ AdminPaymentShowPage(d AdminPaymentShowData) {
+	@DashboardLayout(d.Sidebar) {
+		<div class="space-y-6">
+			<a href="/dashboard/payments" class="inline-block text-sm text-navy hover:text-gold">← Back to Payment Queue</a>
+			if d.Err == "payment-not-pending" {
+				@ErrText("Only pending payments can be reviewed.")
+			}
+			<div class="grid gap-6 lg:grid-cols-12">
+				<div class="space-y-6 lg:col-span-7">
+					<section class="card p-6">
+						<p class="label-caps text-gold">Payment</p>
+						<h1 class="mt-2 font-serif text-2xl font-semibold text-navy">{ d.Payment.PlanName }</h1>
+						<div class="mt-3 flex flex-wrap items-center gap-2">
+							<span class={ "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium", paymentStatusBadge(d.Payment.Status) }>{ paymentStatusLabel(d.Payment.Status) }</span>
+						</div>
+						<dl class="mt-6 space-y-3 border-t border-outline-variant/60 pt-5 text-sm">
+							<div class="flex items-start justify-between gap-4">
+								<dt class="shrink-0 text-on-surface-variant">Member</dt>
+								<dd class="text-right text-navy">{ d.Payment.UserName }</dd>
+							</div>
+							<div class="flex items-start justify-between gap-4">
+								<dt class="shrink-0 text-on-surface-variant">Amount</dt>
+								<dd class="text-right text-navy">{ formatMoney(d.Currency, d.Payment.Amount) }</dd>
+							</div>
+							<div class="flex items-start justify-between gap-4">
+								<dt class="shrink-0 text-on-surface-variant">Method</dt>
+								<dd class="text-right text-navy">{ methodLabel(d.Payment.Method) }</dd>
+							</div>
+							if d.Payment.Reference != "" {
+								<div class="flex items-start justify-between gap-4">
+									<dt class="shrink-0 text-on-surface-variant">Reference</dt>
+									<dd class="text-right text-navy">{ d.Payment.Reference }</dd>
+								</div>
+							}
+							<div class="flex items-start justify-between gap-4">
+								<dt class="shrink-0 text-on-surface-variant">Paid on</dt>
+								<dd class="text-right text-navy">{ d.Payment.PaidAt.Format("02 Jan 2006") }</dd>
+							</div>
+							if d.Payment.ReviewedAt != nil {
+								<div class="flex items-start justify-between gap-4">
+									<dt class="shrink-0 text-on-surface-variant">Reviewed at</dt>
+									<dd class="text-right text-navy">{ d.Payment.ReviewedAt.Format("02 Jan 2006 15:04") }</dd>
+								</div>
+							}
+						</dl>
+						if d.Payment.Notes != "" {
+							<div class="mt-5 border-t border-outline-variant/60 pt-5">
+								<p class="label-caps text-gold">Notes</p>
+								<p class="mt-2 text-sm text-on-surface-variant">{ d.Payment.Notes }</p>
+							</div>
+						}
+						if d.Payment.ReviewNotes != "" {
+							<div class="mt-5 border-t border-outline-variant/60 pt-5">
+								<p class="label-caps text-gold">Review notes</p>
+								<p class="mt-2 text-sm text-on-surface-variant">{ d.Payment.ReviewNotes }</p>
+							</div>
+						}
+						if d.Payment.ProofURL != "" {
+							<div class="mt-5 border-t border-outline-variant/60 pt-5">
+								<p class="label-caps text-gold">Proof</p>
+								<a href={ templ.SafeURL(d.Payment.ProofURL) } target="_blank" rel="noopener" class="mt-2 inline-block font-medium text-navy underline decoration-gold/50 underline-offset-2 hover:text-gold">View proof →</a>
+							</div>
+						}
+					</section>
+				</div>
+				<div class="space-y-6 lg:col-span-5">
+					if d.Payment.Status == "pending" {
+						<section class="card p-6">
+							<p class="label-caps text-gold">Actions</p>
+							<form method="POST" action={ templ.SafeURL("/dashboard/payments/" + strconv.FormatInt(d.Payment.ID, 10) + "/approve") } class="mt-4">
+								@CSRFToken(d.CSRF)
+								<button type="submit" class="btn-primary">Approve</button>
+							</form>
+							<form method="POST" action={ templ.SafeURL("/dashboard/payments/" + strconv.FormatInt(d.Payment.ID, 10) + "/reject") } class="mt-4 space-y-3">
+								@CSRFToken(d.CSRF)
+								@Textarea("Review notes", "review_notes", templ.Attributes{"required": true})
+								<button type="submit" class="w-full rounded border border-error px-4 py-2 text-sm font-semibold text-error transition-colors hover:bg-error hover:text-white">Reject</button>
+							</form>
+						</section>
+					}
+				</div>
+			</div>
+		</div>
+	}
+}
+
+// AdminPaymentRecordData is the admin record-payment form (reference
+// payments/create.blade.php).
+type AdminPaymentRecordData struct {
+	Sidebar SidebarData
+	Plans   []PlanOption
+	Methods []MethodOption
+	Errors  map[string]string
+	CSRF    string
+}
+
+templ AdminPaymentRecordPage(d AdminPaymentRecordData) {
+	@DashboardLayout(d.Sidebar) {
+		<div class="max-w-2xl space-y-8">
+			<section>
+				<h1 class="font-serif text-3xl font-semibold text-navy">Record Payment</h1>
+			</section>
+			<form method="POST" action="/dashboard/payments" enctype="multipart/form-data" class="card space-y-6">
+				@CSRFToken(d.CSRF)
+				<label class="mb-1 block text-sm font-medium text-gray-700">
+					Select member
+					<input type="number" name="user_id" id="user_id" required class="field-input" placeholder="Member ID"/>
+				</label>
+				@ErrText(d.Errors["user_id"])
+				<label class="mb-1 block text-sm font-medium text-gray-700">
+					Plan
+					<select name="membership_plan_id" id="membership_plan_id" required class="field-input">
+						<option value="">Select a plan</option>
+						for _, p := range d.Plans {
+							<option value={ templ.JSONString(strconv.FormatInt(p.ID, 10)) } data-price={ templ.JSONString(p.Price) }>{ p.Name }</option>
+						}
+					</select>
+				</label>
+				@ErrText(d.Errors["membership_plan_id"])
+				<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+					<div>
+						@TextInput("Amount", "amount", "text", templ.Attributes{"placeholder": "0.00"})
+						@ErrText(d.Errors["amount"])
+					</div>
+					<label class="mb-1 block text-sm font-medium text-gray-700">
+						Method
+						<select name="method" id="method" required class="field-input">
+							<option value="">Select a payment method</option>
+							for _, m := range d.Methods {
+								<option value={ templ.SafeURL(m.Type) }>{ m.Label }</option>
+							}
+						</select>
+					</label>
+				</div>
+				@ErrText(d.Errors["method"])
+				<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+					<div>
+						@OptionalInput("Transaction Id/Reference", "reference", "text", nil)
+					</div>
+					<div>
+						<label class="mb-1 block text-sm font-medium text-gray-700">
+							Paid on
+							<input type="date" name="paid_at" required class="field-input" value={ time.Now().Format("2006-01-02") }/>
+						</label>
+						@ErrText(d.Errors["paid_at"])
+					</div>
+				</div>
+				<label class="mb-1 block text-sm font-medium text-gray-700">
+					Proof
+					<input type="file" name="proof" accept="image/jpeg,image/png,application/pdf" class="field-input"/>
+				</label>
+				@OptionalTextarea("Notes", "notes", "")
+				@Checkbox("Activate membership immediately", "activate", "1", false, nil)
+				<div class="flex items-center gap-4">
+					@SubmitButton("Record Payment")
+					<a href="/dashboard/payments" class="text-sm text-on-surface-variant hover:text-navy">Cancel</a>
+				</div>
+			</form>
+		</div>
+		<script defer src="/static/membership.js"></script>
+	}
+}

@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/shuvo-paul/baaku/internal/middleware"
-	"github.com/shuvo-paul/baaku/internal/service/user"
 	"github.com/shuvo-paul/baaku/internal/views"
 )
 
@@ -27,7 +26,7 @@ func (h *Dashboard) Show(w http.ResponseWriter, r *http.Request) {
 	}
 	csrf := middleware.TokenFromContext(r.Context())
 	views.DashboardPage(views.DashboardPageData{
-		Sidebar: views.NewSidebarData(h.appName, csrf, u.Name, u.Email, "/dashboard", u.State == user.StateSuspended),
+		Sidebar: views.NewSidebarData(h.appName, csrf, u.Name, u.Email, "/dashboard", string(u.State), middleware.PermissionsFromContext(r.Context())),
 		Name:    u.Name,
 		State:   string(u.State),
 		Status:  middleware.FlashFromContext(r.Context())["status"],

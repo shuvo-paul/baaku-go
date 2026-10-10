@@ -1,0 +1,77 @@
+package views
+
+import "strconv"
+
+// UserRoleView is the target user shown on the assign-roles form (reference
+// users/roles.blade.php: name + email line).
+type UserRoleView struct {
+	ID    int64
+	Name  string
+	Email string
+}
+
+// UserRolesFormData is the assign-roles form (reference users/roles.blade.php).
+type UserRolesFormData struct {
+	Sidebar  SidebarData
+	User     UserRoleView
+	Roles    []string // every role name (the checkbox list)
+	Selected []string // currently assigned role names
+	ErrMsg   string   // guard message (unverified / cannot-remove-own-admin)
+	CSRF     string
+}
+
+// isRoleSelected reports whether a role name is currently assigned.
+func (d UserRolesFormData) isRoleSelected(name string) bool {
+	for _, s := range d.Selected {
+		if s == name {
+			return true
+		}
+	}
+	return false
+}
+
+// userRolesAction is the form target: POST /dashboard/users/{id}/roles with a
+// spoofed PUT (reference dashboard.users.roles.update).
+func userRolesAction(id int64) string {
+	return "/dashboard/users/" + strconv.FormatInt(id, 10) + "/roles"
+}
+
+templ UserRolesPage(d UserRolesFormData) {
+	@DashboardLayout(d.Sidebar) {
+		<div class="max-w-2xl space-y-8">
+			<section>
+				<p class="label-caps text-gold">Members</p>
+				<h1 class="mt-3 font-serif text-3xl sm:text-4xl font-semibold text-navy">Assign Roles</h1>
+			</section>
+			<div class="card p-6">
+				<p class="text-sm text-on-surface-variant">
+					Name: <strong class="text-navy">{ d.User.Name }</strong>
+					(User Email: <span class="text-navy">{ d.User.Email }</span>)
+				</p>
+			</div>
+			if d.ErrMsg != "" {
+				<section>
+					@ErrText(d.ErrMsg)
+				</section>
+			}
+			<form method="POST" action={ templ.SafeURL(userRolesAction(d.User.ID)) } class="card space-y-6">
+				@CSRFToken(d.CSRF)
+				<input type="hidden" name="_method" value="PUT"/>
+				<fieldset class="space-y-3">
+					<legend class="label-caps text-on-surface-variant">Select Roles</legend>
+					if len(d.Roles) == 0 {
+						<p class="text-sm text-on-surface-variant italic">No roles have been created yet.</p>
+					} else {
+						for _, rl := range d.Roles {
+							@Checkbox(rl, "roles[]", rl, d.isRoleSelected(rl), nil)
+						}
+					}
+				</fieldset>
+				<div class="flex items-center gap-4">
+					@SubmitButton("Assign Roles")
+					<a href="/dashboard/users" class="text-sm text-on-surface-variant hover:text-navy">Back to Dashboard</a>
+				</div>
+			</form>
+		</div>
+	}
+}

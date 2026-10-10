@@ -133,7 +133,7 @@ func EducationFormPage(f EducationForm) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = Checkbox("Currently studying", "is_current", f.Values.IsCurrent, nil).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = Checkbox("Currently studying", "is_current", "1", f.Values.IsCurrent, nil).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -311,7 +311,7 @@ func CareerFormPage(f CareerForm) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = Checkbox("Currently working", "is_current", f.Values.IsCurrent, nil).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = Checkbox("Currently working", "is_current", "1", f.Values.IsCurrent, nil).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

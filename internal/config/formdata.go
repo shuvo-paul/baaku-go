@@ -16,6 +16,18 @@ func careerConfig() Career {
 	}
 }
 
+// membershipConfig mirrors reference/config/membership.php.
+func membershipConfig() Membership {
+	return Membership{
+		Currency:         getenv("MEMBERSHIP_CURRENCY", "BDT"),
+		GateableFeatures: []string{"members", "posts"},
+		ExpiryEnabled:    true,
+		ExpiryAt:         "00:30",
+		ProofMaxKB:       2048,
+		ProofMimes:       []string{"jpg", "jpeg", "png", "pdf"},
+	}
+}
+
 // localNames mirrors reference/config/app.php 'local_names'.
 func localNames() []LocalName {
 	return []LocalName{
