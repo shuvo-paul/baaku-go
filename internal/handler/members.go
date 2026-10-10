@@ -8,7 +8,9 @@
 package handler
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -16,6 +18,8 @@ import (
 
 	"github.com/shuvo-paul/baaku/internal/middleware"
 	"github.com/shuvo-paul/baaku/internal/service/memberdirectory"
+	"github.com/shuvo-paul/baaku/internal/service/membership"
+	"github.com/shuvo-paul/baaku/internal/service/membershippayment"
 	"github.com/shuvo-paul/baaku/internal/service/user"
 	"github.com/shuvo-paul/baaku/internal/views"
 )
@@ -28,15 +32,30 @@ type MemberDirectory interface {
 	ChangeState(ctx context.Context, actorID, targetID int64, state, reason string) error
 }
 
+// MemberMemberships supplies the show-page membership summary (reference
+// $user->latestMembership()); *service/membership.Service satisfies it.
+type MemberMemberships interface {
+	LatestForUser(ctx context.Context, userID int64) (membership.Membership, error)
+}
+
+// MemberPaymentLister supplies the show-page payment list; the handler slices
+// the first page down to the latest 5 (reference ->latest('id')->limit(5)).
+type MemberPaymentLister interface {
+	ListForUser(ctx context.Context, userID, page int64) (membershippayment.Page, error)
+}
+
 // Members renders the directory index + member show pages and handles state
 // transitions.
 type Members struct {
-	svc     MemberDirectory
-	appName string
+	svc                MemberDirectory
+	memberships        MemberMemberships
+	payments           MemberPaymentLister
+	membershipsEnabled bool
+	appName            string
 }
 
-func NewMembers(svc MemberDirectory, appName string) *Members {
-	return &Members{svc: svc, appName: appName}
+func NewMembers(svc MemberDirectory, memberships MemberMemberships, payments MemberPaymentLister, membershipsEnabled bool, appName string) *Members {
+	return &Members{svc: svc, memberships: memberships, payments: payments, membershipsEnabled: membershipsEnabled, appName: appName}
 }
 
 // can reports whether the viewer holds the named permission (the same check
@@ -60,7 +79,7 @@ func (h *Members) Index(w http.ResponseWriter, r *http.Request) {
 	}
 	isAdmin := can(r, "manage members")
 	filter := r.URL.Query().Get("filter")
-	search := r.URL.Query().Get("search")
+	search := strings.TrimSpace(r.URL.Query().Get("search"))
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 	if page < 1 {
 		page = 1
@@ -78,10 +97,16 @@ func (h *Members) Index(w http.ResponseWriter, r *http.Request) {
 		filter = "all"
 	}
 	flash := middleware.FlashFromContext(r.Context())
-	views.MembersPage(views.MembersPageData{
+	// The reference's card footer reads "Review & approve" while the pending
+	// filter is on (users/partials/grid.blade.php).
+	actionLabel := "View profile"
+	if filter == "pending" {
+		actionLabel = "Review & approve"
+	}
+	data := views.MembersPageData{
 		Sidebar: membersSidebar(h.appName, r, u),
 		IsAdmin: isAdmin,
-		Members: memberCards(pg.Members),
+		Members: memberCards(pg.Members, actionLabel),
 		Filter:  filter,
 		Search:  search,
 		Counts:  counts,
@@ -92,7 +117,24 @@ func (h *Members) Index(w http.ResponseWriter, r *http.Request) {
 		Flash:   flash["status"],
 		Err:     flash["error"],
 		CSRF:    middleware.TokenFromContext(r.Context()),
-	}).Render(r.Context(), w)
+	}
+	// The reference answers the debounced live search with just the grid and
+	// pagination fragments (users/index.blade.php ajax() branch).
+	if r.Header.Get("X-Requested-With") == "XMLHttpRequest" {
+		var grid, pagination bytes.Buffer
+		if err := views.MemberCards(data).Render(r.Context(), &grid); err != nil {
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+		if err := views.MemberPaginationNav(data).Render(r.Context(), &pagination); err != nil {
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]string{"grid": grid.String(), "pagination": pagination.String()})
+		return
+	}
+	views.MembersPage(data).Render(r.Context(), w)
 }
 
 // Show renders one member profile (reference UserRoleController@show). The
@@ -125,15 +167,48 @@ func (h *Members) Show(w http.ResponseWriter, r *http.Request) {
 	if showTransitions {
 		transitions = transitionViews(id, m.State.Transitions(), middleware.TokenFromContext(r.Context()))
 	}
+	// The membership summary box renders for viewers who can manage
+	// memberships while the memberships feature is on (reference
+	// users/show.blade.php: can('manage memberships') && config).
+	var memView *views.MemberMembershipView
+	var payViews []views.MemberPaymentView
+	showMembership := h.membershipsEnabled && can(r, "manage memberships")
+	if showMembership {
+		mship, merr := h.memberships.LatestForUser(r.Context(), id)
+		switch {
+		case merr == nil:
+			v := membershipView(mship)
+			memView = &v
+		case errors.Is(merr, membership.ErrNotFound):
+			// No membership yet — the view renders the "none" copy.
+		default:
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+		pg, perr := h.payments.ListForUser(r.Context(), id, 1)
+		if perr != nil {
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+		pays := pg.Payments
+		if len(pays) > 5 {
+			pays = pays[:5]
+		}
+		payViews = paymentViews(pays)
+	}
 	flash := middleware.FlashFromContext(r.Context())
 	views.MemberShowPage(views.MemberShowPageData{
-		Sidebar:      membersSidebar(h.appName, r, u),
-		Member:       memberView(m),
-		IsAdmin:      isAdmin,
-		ShowControls: showTransitions,
-		Transitions:  transitions,
-		Err:          showErr(flash),
-		CSRF:         middleware.TokenFromContext(r.Context()),
+		Sidebar:         membersSidebar(h.appName, r, u),
+		Member:          memberView(m),
+		IsAdmin:         isAdmin,
+		ShowControls:    showTransitions,
+		Transitions:     transitions,
+		ShowMembership:  showMembership,
+		Membership:      memView,
+		Payments:        payViews,
+		ShowAssignRoles: isAdmin && m.State == user.StateActive && m.ID != u.ID,
+		Err:             showErr(flash),
+		CSRF:            middleware.TokenFromContext(r.Context()),
 	}).Render(r.Context(), w)
 }
 
@@ -205,11 +280,11 @@ func transitionViews(targetID int64, states []user.UserState, csrf string) []vie
 		v := views.TransitionView{Value: string(s), CSRF: csrf, Target: target}
 		switch s {
 		case user.StateActive:
-			v.Label, v.Description = "Activate", "Approve this member and let them sign in."
+			v.Label, v.Description, v.Kind = "Activate", "Approve this member and let them sign in.", "gold"
 		case user.StateSuspended:
 			v.Label, v.Description, v.NeedsReason = "Suspend", "Block sign-in for now. Their profile stays on file.", true
 		case user.StateRejected:
-			v.Label, v.Description, v.NeedsReason = "Reject", "Decline the application and block sign-in.", true
+			v.Label, v.Description, v.NeedsReason, v.Kind = "Reject", "Decline the application and block sign-in.", true, "error"
 		case user.StatePending:
 			v.Label, v.Description = "Move to Pending", "Send the member back to the review queue."
 		}
@@ -225,7 +300,7 @@ func showErr(flash map[string]string) string {
 }
 
 // memberCards maps service cards to the directory grid view model.
-func memberCards(cards []memberdirectory.MemberCard) []views.MemberCardView {
+func memberCards(cards []memberdirectory.MemberCard, actionLabel string) []views.MemberCardView {
 	out := make([]views.MemberCardView, 0, len(cards))
 	for _, c := range cards {
 		v := views.MemberCardView{
@@ -236,7 +311,7 @@ func memberCards(cards []memberdirectory.MemberCard) []views.MemberCardView {
 			PhotoURL:    photoURL(c.PhotoPath),
 			Initials:    views.Initials(c.Name),
 			Roles:       strings.Join(c.Roles, ", "),
-			ActionLabel: "View profile",
+			ActionLabel: actionLabel,
 		}
 		if c.EducationLevel != "" && c.EducationInstitution != "" {
 			v.Education = c.EducationLevel + " · " + c.EducationInstitution
@@ -271,21 +346,27 @@ func memberView(m memberdirectory.Member) views.MemberProfileView {
 		EmergencyName:     m.EmergencyContact["name"],
 		EmergencyRelation: m.EmergencyContact["relation"],
 		EmergencyPhone:    m.EmergencyContact["phone"],
+		HasProfile:        m.HasProfile,
 	}
 	// Admin-only lines (phone, addresses, emergency contact) are gated in the
 	// view by d.IsAdmin, mirroring the reference's $isAdmin checks.
 	if v.Website != "" {
 		v.WebsiteURL = absoluteURL(v.Website)
 	}
-	for _, c := range m.Careers {
-		if c.IsCurrent {
-			v.CurrentJobTitle = c.JobTitle
-			break
+	// Reference: firstWhere('is_current') ?? first() over the start_year-desc
+	// list — the repo returns careers already sorted that way.
+	if len(m.Careers) > 0 {
+		v.CurrentJobTitle = m.Careers[0].JobTitle
+		for _, c := range m.Careers {
+			if c.IsCurrent {
+				v.CurrentJobTitle = c.JobTitle
+				break
+			}
 		}
 	}
 	for _, e := range m.Educations {
 		view := views.MemberEducationView{
-			Period:      strconv.FormatInt(int64(e.StartYear), 10) + " — " + yearOrPresent(e.EndYear, e.IsCurrent),
+			Period:      strconv.FormatInt(int64(e.StartYear), 10) + " — " + endYearOrPresent(e.EndYear),
 			Institution: e.Institution,
 			LevelLine:   e.Level,
 			StudentID:   deref(e.StudentID),
@@ -348,6 +429,104 @@ func yearOrPresent(endYear *int32, current bool) string {
 		return strconv.FormatInt(int64(*endYear), 10)
 	}
 	return "—"
+}
+
+// endYearOrPresent renders an education end the way the reference show page
+// does: the year when set, "Present" otherwise (no is_current check).
+func endYearOrPresent(endYear *int32) string {
+	if endYear != nil {
+		return strconv.FormatInt(int64(*endYear), 10)
+	}
+	return "Present"
+}
+
+// membershipView maps a membership to the show-page summary box (reference
+// users/show.blade.php: effective-status badge + start → end dates).
+func membershipView(m membership.Membership) views.MemberMembershipView {
+	planName := m.Plan.Name
+	if planName == "" {
+		planName = "—"
+	}
+	status := m.EffectiveStatus()
+	v := views.MemberMembershipView{
+		PlanName:    planName,
+		StatusLabel: membershipStatusLabel(status),
+		StatusClass: membershipStatusClass(status),
+		Starts:      "—",
+		Ends:        "Never",
+	}
+	if m.StartsAt != nil {
+		v.Starts = m.StartsAt.Format("02 Jan 2006")
+	}
+	if m.EndsAt != nil {
+		v.Ends = m.EndsAt.Format("02 Jan 2006")
+	}
+	return v
+}
+
+// membershipStatusLabel maps the membership.status_* lang labels.
+func membershipStatusLabel(s membership.Status) string {
+	switch s {
+	case membership.StatusActive:
+		return "Active"
+	case membership.StatusExpired:
+		return "Expired"
+	case membership.StatusCancelled:
+		return "Cancelled"
+	}
+	return string(s)
+}
+
+// membershipStatusClass maps the reference membership pill colours.
+func membershipStatusClass(s membership.Status) string {
+	switch s {
+	case membership.StatusActive:
+		return "bg-emerald-100 text-emerald-800"
+	case membership.StatusExpired:
+		return "bg-amber-100 text-amber-800"
+	}
+	return "bg-gray-100 text-gray-600"
+}
+
+// paymentViews maps the latest payments to their summary rows (reference
+// users/show.blade.php payments list).
+func paymentViews(pays []membershippayment.Payment) []views.MemberPaymentView {
+	out := make([]views.MemberPaymentView, 0, len(pays))
+	for _, p := range pays {
+		planName := p.PlanName
+		if planName == "" {
+			planName = "—"
+		}
+		out = append(out, views.MemberPaymentView{
+			PlanName:    planName,
+			PaidAt:      p.PaidAt.Format("02 Jan 2006"),
+			StatusLabel: paymentStatusLabel(p.Status),
+			StatusClass: paymentStatusClass(p.Status),
+		})
+	}
+	return out
+}
+
+// paymentStatusLabel/Class mirror the reference payment pill (approved
+// emerald, pending amber, everything else gray).
+func paymentStatusLabel(s membershippayment.Status) string {
+	switch s {
+	case membershippayment.StatusPending:
+		return "Pending"
+	case membershippayment.StatusApproved:
+		return "Approved"
+	}
+	return "Rejected"
+}
+
+func paymentStatusClass(s membershippayment.Status) string {
+	switch s {
+	case membershippayment.StatusApproved:
+		return "bg-emerald-100 text-emerald-800"
+	case membershippayment.StatusPending:
+		return "bg-amber-100 text-amber-800"
+	}
+	return "bg-gray-100 text-gray-600"
 }
 
 // employmentLabel maps config('career.employment_types') labels.

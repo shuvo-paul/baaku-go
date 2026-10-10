@@ -48,6 +48,9 @@ type Member struct {
 	SocialLinks      map[string]string
 	Website          *string
 	EmergencyContact map[string]string
+	// HasProfile reports whether a profiles row exists (reference users/show
+	// `if (! $profile)`).
+	HasProfile bool
 	// Educations and Careers are the show-page narrative lists (the reference
 	// eager-loads profile.educations / profile.careers); the service composes
 	// them from the education/career listers, so the repo leaves them nil.

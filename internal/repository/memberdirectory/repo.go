@@ -93,6 +93,7 @@ func (r *Repo) Get(ctx context.Context, id int64, activeOnly bool) (memberdirect
 		SocialLinks:      unmarshalMap(row.SocialLinks),
 		Website:          row.Website,
 		EmergencyContact: unmarshalMap(row.EmergencyContact),
+		HasProfile:       row.HasProfile,
 	}, nil
 }
 
